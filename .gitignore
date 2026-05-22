@@ -1,0 +1,28 @@
+# Claude local state
+.claude/
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Node
+node_modules/
+
+# Environment
+.env
+
+# Database
+*.db
+*.sqlite3
+
+# Build output
+dist/
+build/
+
+# OS files
+.DS_Store
+
+# Logs
+*.log
