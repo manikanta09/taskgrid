@@ -12,18 +12,48 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// On 401, clear auth and redirect to login
+let isRefreshing = false;
+let refreshQueue: Array<(token: string) => void> = [];
+
+// On 401: try silent token refresh once, then redirect to login
 apiClient.interceptors.response.use(
   (res) => res,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('tg_access_token');
-      localStorage.removeItem('tg_user');
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
-      }
+  async (error) => {
+    const original = error.config;
+    if (error.response?.status !== 401 || original._retry || original.url?.includes('/auth/')) {
+      return Promise.reject(error);
     }
-    return Promise.reject(error);
+
+    if (isRefreshing) {
+      return new Promise((resolve) => {
+        refreshQueue.push((token) => {
+          original.headers.Authorization = `Bearer ${token}`;
+          resolve(apiClient(original));
+        });
+      });
+    }
+
+    original._retry = true;
+    isRefreshing = true;
+
+    try {
+      const { data } = await axios.post('/api/v1/auth/refresh', {}, { withCredentials: true });
+      const newToken = data.access_token;
+      localStorage.setItem('tg_access_token', newToken);
+      apiClient.defaults.headers.common.Authorization = `Bearer ${newToken}`;
+      refreshQueue.forEach((cb) => cb(newToken));
+      refreshQueue = [];
+      original.headers.Authorization = `Bearer ${newToken}`;
+      return apiClient(original);
+    } catch {
+      refreshQueue = [];
+      localStorage.removeItem('tg_access_token');
+      localStorage.removeItem('tg_auth');
+      if (window.location.pathname !== '/login') window.location.href = '/login';
+      return Promise.reject(error);
+    } finally {
+      isRefreshing = false;
+    }
   }
 );
 
