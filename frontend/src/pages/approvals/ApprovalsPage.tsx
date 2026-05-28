@@ -1,22 +1,21 @@
-import {
-  Box, Grid, Card, CardContent, CardActions, Typography, Button,
-  Avatar, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, Alert, LinearProgress, Divider,
-} from '@mui/material';
-import {
-  ThumbUpRounded, ThumbDownRounded, TimerRounded, AccountTreeRounded,
-} from '@mui/icons-material';
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
+import { toast } from 'sonner';
+import { ThumbsUp, ThumbsDown, Clock, GitBranch, CheckCircle2 } from 'lucide-react';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { approvalsApi } from '../../api/approvals';
-import { apiError } from '../../api/client';
-import PriorityChip from '../../components/common/PriorityChip';
-import EmptyState from '../../components/common/EmptyState';
-import PageHeader from '../../components/common/PageHeader';
-import type { Task, TaskPriority } from '../../types/task';
+import { approvalsApi } from '@/api/approvals';
+import { apiError } from '@/api/client';
+import { PriorityBadge } from '@/components/common/PriorityBadge';
+import PageHeader from '@/components/common/PageHeader';
+import EmptyState from '@/components/common/EmptyState';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
+import type { Task, TaskPriority } from '@/types/task';
 
 dayjs.extend(relativeTime);
 
@@ -35,175 +34,120 @@ export default function ApprovalsPage() {
 
   const approveMut = useMutation({
     mutationFn: (taskId: number) => approvalsApi.approve(taskId, comment || undefined),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['approvals-pending'] });
-      qc.invalidateQueries({ queryKey: ['tasks'] });
-      setSelected(null);
-    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['approvals-pending'] }); qc.invalidateQueries({ queryKey: ['tasks'] }); setSelected(null); toast.success('Task approved!'); },
     onError: (e) => setError(apiError(e)),
   });
 
   const rejectMut = useMutation({
     mutationFn: (taskId: number) => approvalsApi.reject(taskId, comment),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['approvals-pending'] });
-      qc.invalidateQueries({ queryKey: ['tasks'] });
-      setSelected(null);
-    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['approvals-pending'] }); qc.invalidateQueries({ queryKey: ['tasks'] }); setSelected(null); toast.success('Task rejected.'); },
     onError: (e) => setError(apiError(e)),
   });
 
   const handleAction = () => {
     if (!selected) return;
     setError('');
-    if (selected.action === 'approve') {
-      approveMut.mutate(selected.task.id);
-    } else {
-      if (!comment.trim()) { setError('Rejection reason is required.'); return; }
-      rejectMut.mutate(selected.task.id);
-    }
+    if (selected.action === 'approve') approveMut.mutate(selected.task.id);
+    else rejectMut.mutate(selected.task.id);
   };
 
-  const isPending = approveMut.isPending || rejectMut.isPending;
+  const openDialog = (task: Task, action: 'approve' | 'reject') => {
+    setComment('');
+    setError('');
+    setSelected({ task, action });
+  };
 
   return (
-    <Box>
-      <PageHeader
-        title="Approval Inbox"
-        subtitle={`${pending?.length ?? 0} tasks awaiting your decision`}
-      />
+    <div>
+      <PageHeader title="Approval Inbox" subtitle={`${pending?.length ?? 0} tasks awaiting decision`} />
 
-      {isLoading && <LinearProgress sx={{ mb: 2, borderRadius: 1 }} />}
-
-      {!isLoading && !pending?.length ? (
-        <Card sx={{ py: 6 }}>
-          <EmptyState message="No pending approvals. You're all caught up!" />
-        </Card>
-      ) : (
-        <Grid container spacing={2.5}>
-          {pending?.map((task) => {
-            const waitTime = dayjs(task.updated_at).fromNow();
-            return (
-              <Grid item xs={12} sm={6} lg={4} key={task.id}>
-                <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column',
-                  border: '1px solid #e2e8f0', transition: 'box-shadow 0.2s',
-                  '&:hover': { boxShadow: '0 8px 30px rgba(0,0,0,0.1)' } }}>
-                  <CardContent sx={{ flex: 1, pb: 1 }}>
-                    {/* Header */}
-                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 2 }}>
-                      <Box sx={{ p: 1, borderRadius: 2, bgcolor: '#ede9fe', flexShrink: 0 }}>
-                        <AccountTreeRounded sx={{ fontSize: 18, color: '#7c3aed' }} />
-                      </Box>
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography variant="subtitle2" sx={{
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          color: '#0f172a',
-                        }}>
-                          {task.title}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Workflow #{task.workflow_id} · Step {task.current_step}
-                        </Typography>
-                      </Box>
-                      <Typography variant="caption" sx={{ color: '#94a3b8', fontFamily: 'monospace', flexShrink: 0 }}>
-                        #{task.id}
-                      </Typography>
-                    </Box>
-
-                    <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-                      <PriorityChip priority={task.priority as TaskPriority} />
-                    </Box>
-
-                    <Divider sx={{ mb: 1.5 }} />
-
-                    {/* Submitted by */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                      <Avatar sx={{ width: 22, height: 22, fontSize: '0.65rem', bgcolor: '#6366f1' }}>
-                        {task.current_assignee?.full_name?.charAt(0) ?? '?'}
-                      </Avatar>
-                      <Typography variant="caption" color="text.secondary">
-                        Submitted by {task.current_assignee?.full_name ?? 'Unknown'}
-                      </Typography>
-                    </Box>
-
-                    {/* Wait time */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                      <TimerRounded sx={{ fontSize: 14, color: '#f59e0b' }} />
-                      <Typography variant="caption" sx={{ color: '#f59e0b', fontWeight: 600 }}>
-                        Waiting {waitTime}
-                      </Typography>
-                    </Box>
-
-                    {/* Payload preview */}
-                    {task.payload && (
-                      <Box sx={{ mt: 1.5, p: 1.5, bgcolor: '#f8fafc', borderRadius: 1.5, border: '1px solid #e2e8f0' }}>
-                        {Object.entries(task.payload).slice(0, 3).map(([k, v]) => (
-                          <Box key={k} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.25 }}>
-                            <Typography variant="caption" color="text.secondary">{k.replace(/_/g, ' ')}</Typography>
-                            <Typography variant="caption" sx={{ fontWeight: 600 }}>{String(v)}</Typography>
-                          </Box>
-                        ))}
-                      </Box>
-                    )}
-                  </CardContent>
-
-                  <CardActions sx={{ px: 2, pb: 2, gap: 1 }}>
-                    <Button
-                      variant="contained" color="success" size="small" fullWidth
-                      startIcon={<ThumbUpRounded />}
-                      onClick={() => { setComment(''); setError(''); setSelected({ task, action: 'approve' }); }}
-                    >
-                      Approve
-                    </Button>
-                    <Button
-                      variant="outlined" color="error" size="small" fullWidth
-                      startIcon={<ThumbDownRounded />}
-                      onClick={() => { setComment(''); setError(''); setSelected({ task, action: 'reject' }); }}
-                    >
-                      Reject
-                    </Button>
-                  </CardActions>
-                </Card>
-              </Grid>
-            );
-          })}
-        </Grid>
+      {isLoading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-44 rounded-xl" />)}
+        </div>
       )}
 
-      {/* Decision dialog */}
-      <Dialog open={!!selected} onClose={() => !isPending && setSelected(null)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>
-          {selected?.action === 'approve' ? '✅ Approve Task' : '❌ Reject Task'}
-        </DialogTitle>
+      {!isLoading && !pending?.length && (
+        <EmptyState
+          icon={<CheckCircle2 className="size-7 text-emerald-500" />}
+          message="All caught up!"
+          description="No tasks are awaiting your approval right now."
+        />
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {pending?.map((task) => (
+          <motion.div
+            key={task.id}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-card border border-border rounded-xl p-5 shadow-card hover:shadow-card-hover transition-all cursor-pointer group"
+            onClick={() => navigate(`/tasks/${task.id}`)}
+          >
+            <div className="flex items-start justify-between gap-2 mb-3">
+              <div className="size-9 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center flex-shrink-0">
+                <GitBranch className="size-4 text-violet-600 dark:text-violet-400" />
+              </div>
+              <PriorityBadge priority={task.priority as TaskPriority} />
+            </div>
+
+            <p className="text-sm font-semibold text-foreground mb-1 line-clamp-2 group-hover:text-primary transition-colors">{task.title}</p>
+            <p className="text-xs text-muted-foreground mb-4">
+              <Clock className="inline size-3 mr-1 -mt-0.5" />
+              {dayjs(task.updated_at).fromNow()} · WF-{task.workflow_id}
+            </p>
+
+            <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+              <Button
+                size="sm" variant="default"
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => openDialog(task, 'approve')}
+              >
+                <ThumbsUp className="size-3.5" /> Approve
+              </Button>
+              <Button
+                size="sm" variant="outline"
+                className="flex-1 border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-800 dark:hover:bg-rose-900/20"
+                onClick={() => openDialog(task, 'reject')}
+              >
+                <ThumbsDown className="size-3.5" /> Reject
+              </Button>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
         <DialogContent>
-          {selected && (
-            <Box sx={{ mb: 2, p: 2, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
-              <Typography variant="subtitle2">{selected.task.title}</Typography>
-              <Typography variant="caption" color="text.secondary">Task #{selected.task.id}</Typography>
-            </Box>
-          )}
-          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-          <TextField
-            fullWidth multiline rows={3}
-            label={selected?.action === 'approve' ? 'Comment (optional)' : 'Reason (required)'}
-            required={selected?.action === 'reject'}
+          <DialogHeader>
+            <DialogTitle className={selected?.action === 'approve' ? 'text-emerald-600' : 'text-rose-600'}>
+              {selected?.action === 'approve' ? 'Approve Task' : 'Reject Task'}
+            </DialogTitle>
+            <DialogDescription className="truncate">{selected?.task.title}</DialogDescription>
+          </DialogHeader>
+
+          {error && <div className="px-3 py-2 rounded-lg bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 text-sm">{error}</div>}
+
+          <Textarea
+            placeholder={selected?.action === 'approve' ? 'Approval comment (optional)…' : 'Reason for rejection (required)…'}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder={selected?.action === 'approve' ? 'Add an approval note…' : 'Explain why this task is being rejected…'}
+            required={selected?.action === 'reject'}
           />
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelected(null)}>Cancel</Button>
+            <Button
+              onClick={handleAction}
+              disabled={(selected?.action === 'reject' && !comment.trim()) || approveMut.isPending || rejectMut.isPending}
+              className={selected?.action === 'approve' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
+              variant={selected?.action === 'reject' ? 'destructive' : 'default'}
+            >
+              {selected?.action === 'approve' ? 'Confirm Approval' : 'Confirm Rejection'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2.5 }}>
-          <Button onClick={() => setSelected(null)} disabled={isPending}>Cancel</Button>
-          <Button
-            variant="contained"
-            color={selected?.action === 'approve' ? 'success' : 'error'}
-            onClick={handleAction}
-            disabled={isPending}
-          >
-            {isPending ? 'Processing…' : selected?.action === 'approve' ? 'Confirm Approval' : 'Confirm Rejection'}
-          </Button>
-        </DialogActions>
       </Dialog>
-    </Box>
+    </div>
   );
 }

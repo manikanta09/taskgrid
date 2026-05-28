@@ -1,27 +1,27 @@
-import {
-  Box, Card, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Chip, Button, Typography, Tabs, Tab, IconButton, Tooltip, Alert, LinearProgress,
-  Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem,
-  Snackbar, Stack,
-} from '@mui/material';
-import {
-  AddRounded, PlayArrowRounded, ArchiveRounded, VisibilityRounded,
-  AccountTreeRounded, RocketLaunchRounded,
-} from '@mui/icons-material';
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
+import { toast } from 'sonner';
+import { Plus, Eye, Play, Archive, Rocket, GitBranch } from 'lucide-react';
 import dayjs from 'dayjs';
-import { workflowsApi } from '../../api/workflows';
-import { apiError } from '../../api/client';
-import PageHeader from '../../components/common/PageHeader';
-import EmptyState from '../../components/common/EmptyState';
-import type { WorkflowStatus } from '../../types/workflow';
+import { workflowsApi } from '@/api/workflows';
+import { apiError } from '@/api/client';
+import PageHeader from '@/components/common/PageHeader';
+import EmptyState from '@/components/common/EmptyState';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
+import type { WorkflowStatus } from '@/types/workflow';
 
-const STATUS_CFG: Record<WorkflowStatus, { label: string; color: string; bg: string }> = {
-  DRAFT:    { label: 'Draft',    color: '#64748b', bg: '#f1f5f9' },
-  ACTIVE:   { label: 'Active',   color: '#065f46', bg: '#d1fae5' },
-  ARCHIVED: { label: 'Archived', color: '#475569', bg: '#e2e8f0' },
+const STATUS_CFG: Record<WorkflowStatus, { label: string; classes: string }> = {
+  DRAFT:    { label: 'Draft',    classes: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' },
+  ACTIVE:   { label: 'Active',   classes: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
+  ARCHIVED: { label: 'Archived', classes: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-500' },
 };
 
 type TabVal = 'all' | WorkflowStatus;
@@ -30,7 +30,6 @@ export default function WorkflowListPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [tab, setTab] = useState<TabVal>('all');
-  const [toast, setToast] = useState('');
   const [triggerDialog, setTriggerDialog] = useState<{ open: boolean; workflowId: number | null }>({ open: false, workflowId: null });
   const [triggerForm, setTriggerForm] = useState({ title: '', priority: 'medium' });
 
@@ -41,12 +40,14 @@ export default function WorkflowListPage() {
 
   const publishMut = useMutation({
     mutationFn: (id: number) => workflowsApi.publish(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['workflows'] }); setToast('Workflow published!'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['workflows'] }); toast.success('Workflow published!'); },
+    onError: (e) => toast.error(apiError(e)),
   });
 
   const archiveMut = useMutation({
     mutationFn: (id: number) => workflowsApi.archive(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['workflows'] }); setToast('Workflow archived.'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['workflows'] }); toast.success('Workflow archived.'); },
+    onError: (e) => toast.error(apiError(e)),
   });
 
   const triggerMut = useMutation({
@@ -55,149 +56,134 @@ export default function WorkflowListPage() {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
       setTriggerDialog({ open: false, workflowId: null });
-      setToast(`Task #${data.task_id} created!`);
+      toast.success(`Task #${data.task_id} created!`);
       navigate('/tasks');
     },
+    onError: (e) => toast.error(apiError(e)),
   });
 
+  const tabs: TabVal[] = ['all', 'ACTIVE', 'DRAFT', 'ARCHIVED'];
+
   return (
-    <Box>
+    <div>
       <PageHeader
         title="Workflows"
         subtitle={`${data?.total ?? 0} workflow definitions`}
-        action={
-          <Button variant="contained" startIcon={<AddRounded />} onClick={() => navigate('/workflows/new')}>
-            New Workflow
-          </Button>
-        }
+        action={<Button variant="gradient" onClick={() => navigate('/workflows/new')}><Plus className="size-4" />New Workflow</Button>}
       />
 
-      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2.5 }}>
-        {(['all', 'ACTIVE', 'DRAFT', 'ARCHIVED'] as TabVal[]).map((t) => (
-          <Tab key={t} value={t} label={t === 'all' ? 'All' : STATUS_CFG[t as WorkflowStatus]?.label ?? t} />
+      <div className="flex items-center gap-0.5 bg-muted p-1 rounded-lg w-fit mb-5">
+        {tabs.map((t) => (
+          <button key={t} onClick={() => setTab(t)}
+            className={cn('px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150',
+              tab === t ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
+            {t === 'all' ? 'All' : STATUS_CFG[t as WorkflowStatus]?.label}
+          </button>
         ))}
-      </Tabs>
+      </div>
 
-      <Card>
-        {isLoading && <LinearProgress sx={{ borderRadius: '12px 12px 0 0' }} />}
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Steps</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Created By</TableCell>
-                <TableCell>Updated</TableCell>
-                <TableCell align="right">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {data?.items.map((wf) => {
-                const cfg = STATUS_CFG[wf.status];
-                return (
-                  <TableRow key={wf.id} hover>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <Box sx={{ p: 0.75, borderRadius: 1.5, bgcolor: '#ede9fe' }}>
-                          <AccountTreeRounded sx={{ fontSize: 16, color: '#7c3aed' }} />
-                        </Box>
-                        <Box>
-                          <Typography variant="subtitle2" sx={{ color: '#0f172a' }}>{wf.name}</Typography>
-                          {wf.description && (
-                            <Typography variant="caption" color="text.secondary"
-                              sx={{ display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                              {wf.description}
-                            </Typography>
+      <div className="bg-card border border-border rounded-xl overflow-hidden shadow-card">
+        {isLoading && <div className="h-0.5 bg-gradient-to-r from-indigo-500 to-violet-500 animate-pulse" />}
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-border bg-muted/40">
+              {['Workflow', 'Steps', 'Status', 'Created By', 'Updated', 'Actions'].map((h) => (
+                <th key={h} className="px-4 py-3 text-left text-[0.6875rem] font-bold uppercase tracking-widest text-muted-foreground">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {isLoading
+              ? Array.from({ length: 4 }).map((_, i) => (
+                  <tr key={i}>{Array.from({ length: 6 }).map((_, j) => (
+                    <td key={j} className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
+                  ))}</tr>
+                ))
+              : data?.items.map((wf) => {
+                  const cfg = STATUS_CFG[wf.status];
+                  return (
+                    <motion.tr key={wf.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="group hover:bg-muted/30 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="size-8 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center flex-shrink-0">
+                            <GitBranch className="size-4 text-violet-600 dark:text-violet-400" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">{wf.name}</p>
+                            {wf.description && <p className="text-xs text-muted-foreground truncate max-w-[200px]">{wf.description}</p>}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold bg-muted text-muted-foreground">
+                          {wf.steps.length} steps
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={cn('inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold', cfg.classes)}>
+                          {cfg.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3"><span className="text-sm text-muted-foreground">{wf.created_by.full_name}</span></td>
+                      <td className="px-4 py-3"><span className="text-xs text-muted-foreground">{dayjs(wf.updated_at).format('MMM D, YYYY')}</span></td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => navigate(`/workflows/${wf.id}`)} className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+                            <Eye className="size-3.5" />
+                          </button>
+                          {wf.status === 'DRAFT' && (
+                            <button onClick={() => publishMut.mutate(wf.id)} className="p-1.5 rounded-md hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors text-emerald-600">
+                              <Play className="size-3.5" />
+                            </button>
                           )}
-                        </Box>
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Chip label={`${wf.steps.length} steps`} size="small" sx={{ bgcolor: '#f1f5f9', color: '#475569', fontWeight: 600 }} />
-                    </TableCell>
-                    <TableCell>
-                      <Chip label={cfg.label} size="small" sx={{ color: cfg.color, bgcolor: cfg.bg, fontWeight: 600 }} />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">{wf.created_by.full_name}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">
-                        {dayjs(wf.updated_at).format('MMM D, YYYY')}
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                        <Tooltip title="View detail">
-                          <IconButton size="small" onClick={() => navigate(`/workflows/${wf.id}`)}>
-                            <VisibilityRounded fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        {wf.status === 'DRAFT' && (
-                          <Tooltip title="Publish">
-                            <IconButton size="small" color="success" onClick={() => publishMut.mutate(wf.id)}>
-                              <PlayArrowRounded fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                        {wf.status === 'ACTIVE' && (
-                          <>
-                            <Tooltip title="Trigger task">
-                              <IconButton size="small" color="primary"
-                                onClick={() => { setTriggerForm({ title: '', priority: 'medium' }); setTriggerDialog({ open: true, workflowId: wf.id }); }}>
-                                <RocketLaunchRounded fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Archive">
-                              <IconButton size="small" onClick={() => archiveMut.mutate(wf.id)}>
-                                <ArchiveRounded fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </>
-                        )}
-                      </Stack>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        {!isLoading && !data?.items.length && (
-          <EmptyState message="No workflows found. Create your first workflow." />
-        )}
-      </Card>
+                          {wf.status === 'ACTIVE' && (
+                            <>
+                              <button onClick={() => { setTriggerForm({ title: '', priority: 'medium' }); setTriggerDialog({ open: true, workflowId: wf.id }); }}
+                                className="p-1.5 rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors text-indigo-600">
+                                <Rocket className="size-3.5" />
+                              </button>
+                              <button onClick={() => archiveMut.mutate(wf.id)} className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+                                <Archive className="size-3.5" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </motion.tr>
+                  );
+                })
+            }
+          </tbody>
+        </table>
+        {!isLoading && !data?.items.length && <EmptyState message="No workflows found" description="Create your first workflow to get started." action={<Button variant="gradient" onClick={() => navigate('/workflows/new')}><Plus className="size-4" />New Workflow</Button>} />}
+      </div>
 
-      {/* Trigger dialog */}
-      <Dialog open={triggerDialog.open} onClose={() => setTriggerDialog({ open: false, workflowId: null })} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>Trigger New Task</DialogTitle>
+      <Dialog open={triggerDialog.open} onOpenChange={(o) => !o && setTriggerDialog({ open: false, workflowId: null })}>
         <DialogContent>
-          <TextField
-            fullWidth label="Task Title (optional)" value={triggerForm.title}
-            onChange={(e) => setTriggerForm((f) => ({ ...f, title: e.target.value }))}
-            placeholder="Auto-generated if empty" sx={{ mt: 1, mb: 2 }}
-          />
-          <TextField
-            fullWidth select label="Priority" value={triggerForm.priority}
-            onChange={(e) => setTriggerForm((f) => ({ ...f, priority: e.target.value }))}
-          >
-            {['low','medium','high','critical'].map((p) => (
-              <MenuItem key={p} value={p} sx={{ textTransform: 'capitalize' }}>{p}</MenuItem>
-            ))}
-          </TextField>
+          <DialogHeader><DialogTitle>Trigger New Task</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Task Title (optional)</Label>
+              <Input value={triggerForm.title} onChange={(e) => setTriggerForm((f) => ({ ...f, title: e.target.value }))} placeholder="Auto-generated if empty" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Priority</Label>
+              <Select value={triggerForm.priority} onValueChange={(v) => setTriggerForm((f) => ({ ...f, priority: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {['low','medium','high','critical'].map((p) => <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTriggerDialog({ open: false, workflowId: null })}>Cancel</Button>
+            <Button variant="gradient" onClick={() => triggerMut.mutate({ id: triggerDialog.workflowId!, form: triggerForm })} disabled={triggerMut.isPending}>
+              {triggerMut.isPending ? 'Creating…' : 'Create Task'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2.5 }}>
-          <Button onClick={() => setTriggerDialog({ open: false, workflowId: null })}>Cancel</Button>
-          <Button variant="contained" onClick={() => triggerMut.mutate({ id: triggerDialog.workflowId!, form: triggerForm })}
-            disabled={triggerMut.isPending}>
-            {triggerMut.isPending ? 'Creating…' : 'Create Task'}
-          </Button>
-        </DialogActions>
-        {triggerMut.isError && <Alert severity="error" sx={{ mx: 2, mb: 2 }}>{apiError(triggerMut.error)}</Alert>}
       </Dialog>
-
-      <Snackbar open={!!toast} autoHideDuration={3000} onClose={() => setToast('')} message={toast} />
-    </Box>
+    </div>
   );
 }

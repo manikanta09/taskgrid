@@ -1,73 +1,68 @@
-import {
-  Box, Card, CardContent, Typography, Button, Grid, Chip, Avatar, Alert,
-  Divider, Dialog, DialogTitle, DialogContent, DialogActions, TextField,
-  CircularProgress, Stepper, Step, StepLabel,
-  Stack, Snackbar,
-} from '@mui/material';
-import {
-  ArrowBackRounded, PlayArrowRounded, SendRounded, EscalatorWarningRounded,
-  CancelRounded, CheckCircleRounded, ThumbUpRounded, ThumbDownRounded,
-  AssignmentIndRounded, PersonRounded,
-} from '@mui/icons-material';
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
+import { toast } from 'sonner';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { tasksApi } from '../../api/tasks';
-import { approvalsApi } from '../../api/approvals';
-import { useAuthStore } from '../../store/authStore';
-import StatusChip from '../../components/common/StatusChip';
-import PriorityChip from '../../components/common/PriorityChip';
-import { apiError } from '../../api/client';
-import type { TaskStatus, TaskPriority } from '../../types/task';
+import {
+  ArrowLeft, Play, Send, AlertTriangle, XCircle, CheckCircle2, ThumbsUp, ThumbsDown,
+  UserCheck, User, Clock, GitBranch, Flag,
+} from 'lucide-react';
+import { tasksApi } from '@/api/tasks';
+import { approvalsApi } from '@/api/approvals';
+import { useAuthStore } from '@/store/authStore';
+import { apiError } from '@/api/client';
+import { StatusBadge } from '@/components/common/StatusBadge';
+import { PriorityBadge } from '@/components/common/PriorityBadge';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
+import type { TaskStatus, TaskPriority } from '@/types/task';
 
 dayjs.extend(relativeTime);
 
-const ACTION_ICONS: Record<string, React.ReactNode> = {
-  'task.created':   <CheckCircleRounded sx={{ fontSize: 14 }} />,
-  'task.assigned':  <AssignmentIndRounded sx={{ fontSize: 14 }} />,
-  'task.claimed':   <PersonRounded sx={{ fontSize: 14 }} />,
-  'task.started':   <PlayArrowRounded sx={{ fontSize: 14 }} />,
-  'task.submitted': <SendRounded sx={{ fontSize: 14 }} />,
-  'task.approved':  <ThumbUpRounded sx={{ fontSize: 14 }} />,
-  'task.rejected':  <ThumbDownRounded sx={{ fontSize: 14 }} />,
-  'task.escalated': <EscalatorWarningRounded sx={{ fontSize: 14 }} />,
-  'task.cancelled': <CancelRounded sx={{ fontSize: 14 }} />,
-  'task.completed': <CheckCircleRounded sx={{ fontSize: 14 }} />,
+const TIMELINE_ICONS: Record<string, React.ReactNode> = {
+  'task.created':   <CheckCircle2 className="size-3.5" />,
+  'task.assigned':  <UserCheck className="size-3.5" />,
+  'task.claimed':   <User className="size-3.5" />,
+  'task.started':   <Play className="size-3.5" />,
+  'task.submitted': <Send className="size-3.5" />,
+  'task.approved':  <ThumbsUp className="size-3.5" />,
+  'task.rejected':  <ThumbsDown className="size-3.5" />,
+  'task.escalated': <AlertTriangle className="size-3.5" />,
+  'task.cancelled': <XCircle className="size-3.5" />,
+  'task.completed': <CheckCircle2 className="size-3.5" />,
 };
 
-const DOT_COLORS: Record<string, 'success' | 'error' | 'warning' | 'primary' | 'grey'> = {
-  'task.created': 'grey', 'task.completed': 'success', 'task.approved': 'success',
-  'task.rejected': 'error', 'task.escalated': 'warning', 'task.cancelled': 'error',
+const TIMELINE_COLORS: Record<string, string> = {
+  'task.completed': 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30',
+  'task.approved':  'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30',
+  'task.rejected':  'text-rose-600 bg-rose-100 dark:bg-rose-900/30',
+  'task.escalated': 'text-amber-600 bg-amber-100 dark:bg-amber-900/30',
+  'task.cancelled': 'text-slate-500 bg-slate-100 dark:bg-slate-800',
 };
+
+type DialogType = 'approve' | 'reject' | 'submit' | 'escalate' | null;
 
 export default function TaskDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { user } = useAuthStore();
-  const [approveDialog, setApproveDialog] = useState<'approve' | 'reject' | null>(null);
-  const [submitDialog, setSubmitDialog] = useState(false);
-  const [escalateDialog, setEscalateDialog] = useState(false);
-  const [approveComment, setApproveComment] = useState('');
-  const [rejectReason, setRejectReason] = useState('');
-  const [submitNotes, setSubmitNotes] = useState('');
-  const [escalateReason, setEscalateReason] = useState('');
-  const [toast, setToast] = useState('');
-
   const taskId = Number(id);
 
-  const { data: task, isLoading } = useQuery({
-    queryKey: ['task', id],
-    queryFn: () => tasksApi.get(taskId),
-  });
+  const [dialog, setDialog]         = useState<DialogType>(null);
+  const [comment, setComment]       = useState('');
+  const [rejectReason, setRejectReason] = useState('');
+  const [submitNotes, setSubmitNotes]   = useState('');
+  const [escalateReason, setEscalateReason] = useState('');
 
-  const { data: timeline } = useQuery({
-    queryKey: ['task-timeline', id],
-    queryFn: () => tasksApi.timeline(taskId),
-    enabled: !!id,
-  });
+  const { data: task, isLoading } = useQuery({ queryKey: ['task', id], queryFn: () => tasksApi.get(taskId) });
+  const { data: timeline }        = useQuery({ queryKey: ['task-timeline', id], queryFn: () => tasksApi.timeline(taskId), enabled: !!id });
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['task', id] });
@@ -75,297 +70,187 @@ export default function TaskDetailPage() {
     qc.invalidateQueries({ queryKey: ['tasks'] });
   };
 
-  const claimMut = useMutation({
-    mutationFn: () => tasksApi.claim(taskId),
-    onSuccess: () => { invalidate(); setToast('Task claimed!'); },
-  });
-  const startMut = useMutation({
-    mutationFn: () => tasksApi.start(taskId),
-    onSuccess: () => { invalidate(); setToast('Task started!'); },
-  });
-  const submitMut = useMutation({
-    mutationFn: () => tasksApi.submit(taskId, { outcome: 'completed', notes: submitNotes }),
-    onSuccess: () => { invalidate(); setSubmitDialog(false); setToast('Submitted for approval!'); },
-  });
-  const completeMut = useMutation({
-    mutationFn: () => tasksApi.complete(taskId),
-    onSuccess: () => { invalidate(); setToast('Task completed!'); },
-  });
-  const approveMut = useMutation({
-    mutationFn: () => approvalsApi.approve(taskId, approveComment || undefined),
-    onSuccess: () => { invalidate(); setApproveDialog(null); setToast('Task approved!'); },
-  });
-  const rejectMut = useMutation({
-    mutationFn: () => approvalsApi.reject(taskId, rejectReason),
-    onSuccess: () => { invalidate(); setApproveDialog(null); setToast('Task rejected.'); },
-  });
-  const escalateMut = useMutation({
-    mutationFn: () => tasksApi.escalate(taskId, { reason: escalateReason }),
-    onSuccess: () => { invalidate(); setEscalateDialog(false); setToast('Task escalated.'); },
-  });
-  const cancelMut = useMutation({
-    mutationFn: () => tasksApi.cancel(taskId),
-    onSuccess: () => { invalidate(); setToast('Task cancelled.'); },
-  });
+  const makeMut = (fn: () => Promise<any>, msg: string) =>
+    useMutation({ mutationFn: fn, onSuccess: () => { invalidate(); toast.success(msg); setDialog(null); }, onError: (e) => toast.error(apiError(e)) });
 
-  if (isLoading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress /></Box>;
-  if (!task) return <Alert severity="error">Task not found.</Alert>;
+  const claimMut    = makeMut(() => tasksApi.claim(taskId), 'Task claimed!');
+  const startMut    = makeMut(() => tasksApi.start(taskId), 'Task started!');
+  const completeMut = makeMut(() => tasksApi.complete(taskId), 'Task completed!');
+  const submitMut   = makeMut(() => tasksApi.submit(taskId, { outcome: 'completed', notes: submitNotes }), 'Submitted for approval!');
+  const approveMut  = makeMut(() => approvalsApi.approve(taskId, comment || undefined), 'Task approved!');
+  const rejectMut   = makeMut(() => approvalsApi.reject(taskId, rejectReason), 'Task rejected.');
+  const escalateMut = makeMut(() => tasksApi.escalate(taskId, { reason: escalateReason }), 'Task escalated.');
+  const cancelMut   = makeMut(() => tasksApi.cancel(taskId), 'Task cancelled.');
 
-  const isAssignee = task.current_assignee?.id === user?.id;
-  const canAct = isAssignee || user?.role === 'admin' || user?.role === 'manager';
-  const canApprove = user?.role === 'admin' || user?.role === 'manager';
+  const isAdmin   = user?.role === 'admin';
+  const isManager = user?.role === 'manager' || isAdmin;
+  const isAssignee = task?.current_assignee?.id === user?.id;
+
+  if (isLoading) return (
+    <div className="space-y-4">
+      <Skeleton className="h-10 w-48" />
+      <Skeleton className="h-48 w-full" />
+    </div>
+  );
+  if (!task) return <div className="text-muted-foreground p-8 text-center">Task not found.</div>;
 
   return (
-    <Box>
-      <Button startIcon={<ArrowBackRounded />} onClick={() => navigate(-1)} sx={{ mb: 2, color: '#64748b' }}>
-        Back
+    <div>
+      <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="mb-4 gap-1.5 text-muted-foreground">
+        <ArrowLeft className="size-3.5" /> Back
       </Button>
 
-      {/* Task header */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent sx={{ p: '24px !important' }}>
-          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, flexWrap: 'wrap' }}>
-            <Box sx={{ flex: 1 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1, flexWrap: 'wrap' }}>
-                <Typography variant="caption" sx={{ color: '#94a3b8', fontFamily: 'monospace' }}>#{task.id}</Typography>
-                <StatusChip status={task.status as TaskStatus} size="medium" />
-                <PriorityChip priority={task.priority as TaskPriority} size="medium" />
-              </Box>
-              <Typography variant="h5" sx={{ mb: 1 }}>{task.title}</Typography>
-              <Stack direction="row" spacing={3} flexWrap="wrap">
-                <Box>
-                  <Typography variant="caption" color="text.secondary">Workflow</Typography>
-                  <Typography variant="subtitle2">WF-{task.workflow_id}</Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">Current Step</Typography>
-                  <Typography variant="subtitle2">Step {task.current_step}</Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">Assignee</Typography>
-                  <Typography variant="subtitle2">{task.current_assignee?.full_name ?? 'Unassigned'}</Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">Created by</Typography>
-                  <Typography variant="subtitle2">{task.created_by.full_name}</Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">Created</Typography>
-                  <Typography variant="subtitle2">{dayjs(task.created_at).format('MMM D, YYYY HH:mm')}</Typography>
-                </Box>
-                {task.due_at && (
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">Due</Typography>
-                    <Typography variant="subtitle2" sx={{ color: dayjs(task.due_at).isBefore(dayjs()) ? '#ef4444' : 'inherit' }}>
-                      {dayjs(task.due_at).format('MMM D, YYYY HH:mm')}
-                    </Typography>
-                  </Box>
-                )}
-              </Stack>
-            </Box>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Main */}
+        <div className="lg:col-span-2 space-y-4">
+          {/* Header card */}
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="bg-card border border-border rounded-xl p-6 shadow-card">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                  <span className="text-xs font-mono text-muted-foreground">#{task.id}</span>
+                  <StatusBadge status={task.status as TaskStatus} />
+                  <PriorityBadge priority={task.priority as TaskPriority} />
+                </div>
+                <h2 className="text-xl font-bold tracking-tight text-foreground">{task.title}</h2>
+              </div>
+            </div>
 
-            {/* Action buttons */}
-            <Stack direction="row" spacing={1} flexWrap="wrap">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-border">
+              {[
+                { icon: <GitBranch className="size-3.5" />, label: 'Workflow', value: `WF-${task.workflow_id}` },
+                { icon: <User className="size-3.5" />,      label: 'Assignee', value: task.current_assignee?.full_name ?? 'Unassigned' },
+                { icon: <Clock className="size-3.5" />,     label: 'Created',  value: dayjs(task.created_at).fromNow() },
+                { icon: <Flag className="size-3.5" />,      label: 'Step',     value: `Step ${task.current_step}` },
+              ].map((m) => (
+                <div key={m.label}>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground mb-0.5">{m.icon}{m.label}</div>
+                  <div className="text-sm font-semibold text-foreground truncate">{m.value}</div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Action buttons */}
+          <div className="bg-card border border-border rounded-xl p-5 shadow-card">
+            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Actions</p>
+            <div className="flex flex-wrap gap-2">
               {task.status === 'CREATED' && (
-                <Button variant="contained" startIcon={<AssignmentIndRounded />}
-                  onClick={() => claimMut.mutate()} disabled={claimMut.isPending}>
-                  Claim Task
+                <Button size="sm" variant="outline" onClick={() => claimMut.mutate()} disabled={claimMut.isPending}>
+                  <UserCheck className="size-3.5" /> Claim Task
                 </Button>
               )}
-              {task.status === 'ASSIGNED' && canAct && (
-                <Button variant="contained" color="primary" startIcon={<PlayArrowRounded />}
-                  onClick={() => startMut.mutate()} disabled={startMut.isPending}>
-                  Start
+              {task.status === 'ASSIGNED' && isAssignee && (
+                <Button size="sm" onClick={() => startMut.mutate()} disabled={startMut.isPending}>
+                  <Play className="size-3.5" /> Start Task
                 </Button>
               )}
-              {task.status === 'IN_PROGRESS' && canAct && (
+              {task.status === 'IN_PROGRESS' && isAssignee && (
+                <Button size="sm" onClick={() => setDialog('submit')}>
+                  <Send className="size-3.5" /> Submit for Approval
+                </Button>
+              )}
+              {task.status === 'PENDING_APPROVAL' && isManager && (
                 <>
-                  <Button variant="contained" color="primary" startIcon={<SendRounded />}
-                    onClick={() => setSubmitDialog(true)}>
-                    Submit for Approval
+                  <Button size="sm" variant="default" onClick={() => setDialog('approve')} className="bg-emerald-600 hover:bg-emerald-700">
+                    <ThumbsUp className="size-3.5" /> Approve
                   </Button>
-                  <Button variant="outlined" color="success" startIcon={<CheckCircleRounded />}
-                    onClick={() => completeMut.mutate()} disabled={completeMut.isPending}>
-                    Complete
-                  </Button>
-                  <Button variant="outlined" color="warning" startIcon={<EscalatorWarningRounded />}
-                    onClick={() => setEscalateDialog(true)}>
-                    Escalate
+                  <Button size="sm" variant="outline" onClick={() => setDialog('reject')} className="border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-800 dark:hover:bg-rose-900/20">
+                    <ThumbsDown className="size-3.5" /> Reject
                   </Button>
                 </>
               )}
-              {task.status === 'PENDING_APPROVAL' && canApprove && (
-                <>
-                  <Button variant="contained" color="success" startIcon={<ThumbUpRounded />}
-                    onClick={() => { setApproveComment(''); setApproveDialog('approve'); }}>
-                    Approve
-                  </Button>
-                  <Button variant="outlined" color="error" startIcon={<ThumbDownRounded />}
-                    onClick={() => { setRejectReason(''); setApproveDialog('reject'); }}>
-                    Reject
-                  </Button>
-                </>
-              )}
-              {!['COMPLETED', 'CANCELLED'].includes(task.status) &&
-                (user?.role === 'admin' || user?.role === 'manager') && (
-                <Button variant="outlined" color="error" size="small" startIcon={<CancelRounded />}
-                  onClick={() => cancelMut.mutate()} disabled={cancelMut.isPending}>
-                  Cancel
+              {task.status === 'ASSIGNED' && (
+                <Button size="sm" variant="outline" onClick={() => completeMut.mutate()} disabled={completeMut.isPending}>
+                  <CheckCircle2 className="size-3.5" /> Complete
                 </Button>
               )}
-            </Stack>
-          </Box>
-        </CardContent>
-      </Card>
+              {!['COMPLETED','CANCELLED'].includes(task.status) && (
+                <Button size="sm" variant="ghost" onClick={() => setDialog('escalate')} className="text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20">
+                  <AlertTriangle className="size-3.5" /> Escalate
+                </Button>
+              )}
+              {!['COMPLETED','CANCELLED'].includes(task.status) && isManager && (
+                <Button size="sm" variant="ghost" onClick={() => cancelMut.mutate()} disabled={cancelMut.isPending} className="text-muted-foreground">
+                  <XCircle className="size-3.5" /> Cancel
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
 
-      <Grid container spacing={3}>
         {/* Timeline */}
-        <Grid item xs={12} md={7}>
-          <Card>
-            <CardContent>
-              <Typography variant="subtitle1" sx={{ mb: 2 }}>Activity Timeline</Typography>
-              {timeline?.length ? (
-                <Box sx={{ position: 'relative' }}>
-                  {timeline.map((entry, i) => (
-                    <Box key={entry.id} sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <Box sx={{
-                          width: 30, height: 30, borderRadius: '50%', display: 'flex',
-                          alignItems: 'center', justifyContent: 'center',
-                          bgcolor: `${DOT_COLORS[entry.action] === 'success' ? '#d1fae5' : DOT_COLORS[entry.action] === 'error' ? '#fee2e2' : DOT_COLORS[entry.action] === 'warning' ? '#fef3c7' : '#f1f5f9'}`,
-                          color: DOT_COLORS[entry.action] === 'success' ? '#10b981' : DOT_COLORS[entry.action] === 'error' ? '#ef4444' : DOT_COLORS[entry.action] === 'warning' ? '#f59e0b' : '#6366f1',
-                          flexShrink: 0,
-                        }}>
-                          {ACTION_ICONS[entry.action] ?? <CheckCircleRounded sx={{ fontSize: 14 }} />}
-                        </Box>
-                        {i < timeline.length - 1 && (
-                          <Box sx={{ width: 2, flex: 1, bgcolor: '#e2e8f0', my: 0.5, minHeight: 20 }} />
-                        )}
-                      </Box>
-                      <Box sx={{ pb: i < timeline.length - 1 ? 1 : 0 }}>
-                        <Typography variant="subtitle2" sx={{ textTransform: 'capitalize' }}>
-                          {entry.action.replace('task.', '').replace('.', ' ')}
-                        </Typography>
-                        {entry.after_state && typeof entry.after_state === 'object' && (
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                            {Object.entries(entry.after_state)
-                              .filter(([k]) => !['status'].includes(k))
-                              .map(([k, v]) => `${k}: ${v}`)
-                              .join(' · ')}
-                          </Typography>
-                        )}
-                        <Typography variant="caption" sx={{ color: '#94a3b8' }}>
-                          {dayjs(entry.created_at).format('MMM D, YYYY HH:mm')}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  ))}
-                </Box>
-              ) : (
-                <Typography variant="body2" color="text.secondary">No activity recorded yet.</Typography>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Payload + metadata */}
-        <Grid item xs={12} md={5}>
-          {task.payload && (
-            <Card sx={{ mb: 3 }}>
-              <CardContent>
-                <Typography variant="subtitle1" sx={{ mb: 2 }}>Task Data</Typography>
-                {Object.entries(task.payload).map(([key, val]) => (
-                  <Box key={key} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.75, borderBottom: '1px solid #f1f5f9' }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
-                      {key.replace(/_/g, ' ')}
-                    </Typography>
-                    <Typography variant="caption" sx={{ fontWeight: 600, color: '#0f172a' }}>
-                      {String(val)}
-                    </Typography>
-                  </Box>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-          {task.outcome_data && (
-            <Card>
-              <CardContent>
-                <Typography variant="subtitle1" sx={{ mb: 2 }}>Outcome Data</Typography>
-                {Object.entries(task.outcome_data).map(([key, val]) => (
-                  <Box key={key} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.75, borderBottom: '1px solid #f1f5f9' }}>
-                    <Typography variant="caption" color="text.secondary">{key.replace(/_/g, ' ')}</Typography>
-                    <Typography variant="caption" sx={{ fontWeight: 600 }}>{String(val)}</Typography>
-                  </Box>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-        </Grid>
-      </Grid>
+        <div className="bg-card border border-border rounded-xl p-5 shadow-card h-fit">
+          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">Activity Timeline</p>
+          <div className="space-y-4">
+            {timeline?.map((log: any, i: number) => (
+              <div key={log.id} className="flex gap-3">
+                <div className={cn(
+                  'size-6 rounded-full flex items-center justify-center flex-shrink-0',
+                  TIMELINE_COLORS[log.action] ?? 'text-indigo-600 bg-indigo-100 dark:bg-indigo-900/30'
+                )}>
+                  {TIMELINE_ICONS[log.action] ?? <Clock className="size-3" />}
+                </div>
+                <div className="flex-1 min-w-0 pt-0.5">
+                  <p className="text-xs font-semibold text-foreground capitalize">
+                    {log.action.replace('task.', '').replace('.', ' ')}
+                  </p>
+                  <p className="text-[0.6875rem] text-muted-foreground">{dayjs(log.created_at).fromNow()}</p>
+                </div>
+              </div>
+            ))}
+            {!timeline?.length && <p className="text-sm text-muted-foreground">No activity yet.</p>}
+          </div>
+        </div>
+      </div>
 
       {/* Submit dialog */}
-      <Dialog open={submitDialog} onClose={() => setSubmitDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>Submit for Approval</DialogTitle>
+      <Dialog open={dialog === 'submit'} onOpenChange={(o) => !o && setDialog(null)}>
         <DialogContent>
-          <TextField fullWidth multiline rows={3} label="Notes (optional)" value={submitNotes}
-            onChange={(e) => setSubmitNotes(e.target.value)} sx={{ mt: 1 }} />
+          <DialogHeader><DialogTitle>Submit for Approval</DialogTitle><DialogDescription>Add completion notes (optional)</DialogDescription></DialogHeader>
+          <Textarea placeholder="Notes about what was done…" value={submitNotes} onChange={(e) => setSubmitNotes(e.target.value)} />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button onClick={() => submitMut.mutate()} disabled={submitMut.isPending}>Submit</Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2.5 }}>
-          <Button onClick={() => setSubmitDialog(false)}>Cancel</Button>
-          <Button variant="contained" onClick={() => submitMut.mutate()} disabled={submitMut.isPending}>
-            {submitMut.isPending ? 'Submitting…' : 'Submit'}
-          </Button>
-        </DialogActions>
       </Dialog>
 
       {/* Approve dialog */}
-      <Dialog open={approveDialog === 'approve'} onClose={() => setApproveDialog(null)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>Approve Task</DialogTitle>
+      <Dialog open={dialog === 'approve'} onOpenChange={(o) => !o && setDialog(null)}>
         <DialogContent>
-          <TextField fullWidth multiline rows={3} label="Comment (optional)" value={approveComment}
-            onChange={(e) => setApproveComment(e.target.value)} sx={{ mt: 1 }} />
+          <DialogHeader><DialogTitle>Approve Task</DialogTitle><DialogDescription>Add an optional comment</DialogDescription></DialogHeader>
+          <Textarea placeholder="Approval comment (optional)…" value={comment} onChange={(e) => setComment(e.target.value)} />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button onClick={() => approveMut.mutate()} disabled={approveMut.isPending} className="bg-emerald-600 hover:bg-emerald-700">Approve</Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2.5 }}>
-          <Button onClick={() => setApproveDialog(null)}>Cancel</Button>
-          <Button variant="contained" color="success" onClick={() => approveMut.mutate()} disabled={approveMut.isPending}>
-            {approveMut.isPending ? 'Approving…' : 'Approve'}
-          </Button>
-        </DialogActions>
       </Dialog>
 
       {/* Reject dialog */}
-      <Dialog open={approveDialog === 'reject'} onClose={() => setApproveDialog(null)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>Reject Task</DialogTitle>
+      <Dialog open={dialog === 'reject'} onOpenChange={(o) => !o && setDialog(null)}>
         <DialogContent>
-          <TextField fullWidth multiline rows={3} label="Reason (required)" required value={rejectReason}
-            onChange={(e) => setRejectReason(e.target.value)} sx={{ mt: 1 }} />
+          <DialogHeader><DialogTitle>Reject Task</DialogTitle><DialogDescription>Reason is required</DialogDescription></DialogHeader>
+          <Textarea placeholder="Reason for rejection…" value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} required />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => rejectMut.mutate()} disabled={!rejectReason.trim() || rejectMut.isPending}>Reject</Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2.5 }}>
-          <Button onClick={() => setApproveDialog(null)}>Cancel</Button>
-          <Button variant="contained" color="error" onClick={() => rejectMut.mutate()}
-            disabled={rejectMut.isPending || !rejectReason.trim()}>
-            {rejectMut.isPending ? 'Rejecting…' : 'Reject'}
-          </Button>
-        </DialogActions>
       </Dialog>
 
       {/* Escalate dialog */}
-      <Dialog open={escalateDialog} onClose={() => setEscalateDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>Escalate Task</DialogTitle>
+      <Dialog open={dialog === 'escalate'} onOpenChange={(o) => !o && setDialog(null)}>
         <DialogContent>
-          <TextField fullWidth multiline rows={3} label="Reason (required)" required value={escalateReason}
-            onChange={(e) => setEscalateReason(e.target.value)} sx={{ mt: 1 }} />
+          <DialogHeader><DialogTitle>Escalate Task</DialogTitle><DialogDescription>Provide escalation reason</DialogDescription></DialogHeader>
+          <Textarea placeholder="Why is this being escalated?…" value={escalateReason} onChange={(e) => setEscalateReason(e.target.value)} required />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button onClick={() => escalateMut.mutate()} disabled={!escalateReason.trim() || escalateMut.isPending} className="bg-amber-500 hover:bg-amber-600">Escalate</Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2.5 }}>
-          <Button onClick={() => setEscalateDialog(false)}>Cancel</Button>
-          <Button variant="contained" color="warning" onClick={() => escalateMut.mutate()}
-            disabled={escalateMut.isPending || !escalateReason.trim()}>
-            Escalate
-          </Button>
-        </DialogActions>
       </Dialog>
-
-      <Snackbar open={!!toast} autoHideDuration={3000} onClose={() => setToast('')} message={toast} />
-    </Box>
+    </div>
   );
 }

@@ -1,31 +1,49 @@
 version: "3.9"
 
 services:
+  # ─────────────────────────────────────────────
+  # PostgreSQL 16 — primary database
+  # ─────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: taskgrid
+      POSTGRES_USER: taskgrid
+      POSTGRES_PASSWORD: taskgrid_secret
+    ports:
+      - "5432:5432"          # expose for local psql / pgAdmin access
+    volumes:
+      - taskgrid_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskgrid -d taskgrid"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ─────────────────────────────────────────────
+  # FastAPI backend
+  # ─────────────────────────────────────────────
   backend:
     build: ./backend
+    restart: unless-stopped
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
-      - taskgrid_data:/app/data
     env_file:
       - .env
     environment:
-      - DATABASE_URL=sqlite:////app/data/taskgrid.db
-    restart: unless-stopped
-
-  frontend:
-    build: ./frontend
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    env_file:
-      - .env
+      # Override DATABASE_URL to use the Docker-internal db hostname
+      DATABASE_URL: postgresql://taskgrid:taskgrid_secret@db:5432/taskgrid
     depends_on:
-      - backend
-    restart: unless-stopped
+      db:
+        condition: service_healthy
+
+  # Frontend is run locally with: cd frontend && npm run dev
+  # No Dockerfile needed for local dev.
 
 volumes:
-  taskgrid_data:
+  taskgrid_pg_data:
+    driver: local

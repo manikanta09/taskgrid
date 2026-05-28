@@ -1,5 +1,5 @@
 from __future__ import annotations
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.models.task import Task
@@ -56,10 +56,14 @@ class TaskRepository:
         return {status: count for status, count in rows}
 
     def count_completed_today(self) -> int:
+        # Use an explicit UTC timestamp range instead of func.date() to avoid
+        # server-timezone ambiguity on PostgreSQL TIMESTAMPTZ columns.
         today = datetime.now(timezone.utc).date()
+        day_start = datetime(today.year, today.month, today.day, tzinfo=timezone.utc)
+        day_end = day_start + timedelta(days=1)
         return (
             self.db.query(Task)
             .filter(Task.status == "COMPLETED")
-            .filter(func.date(Task.updated_at) == today)
+            .filter(Task.updated_at >= day_start, Task.updated_at < day_end)
             .count()
         )

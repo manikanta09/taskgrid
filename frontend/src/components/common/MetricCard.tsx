@@ -1,4 +1,7 @@
-import { Card, CardContent, Box, Typography, Skeleton } from '@mui/material';
+import { motion } from 'framer-motion';
+import { TrendingUp, TrendingDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
 import type { ReactNode } from 'react';
 
 interface MetricCardProps {
@@ -9,75 +12,68 @@ interface MetricCardProps {
   bg: string;
   subtitle?: string;
   loading?: boolean;
-  trend?: { value: number; label: string };
+  trend?: { value: number; label?: string };
+  onClick?: () => void;
 }
 
-export default function MetricCard({ title, value, icon, color, bg, subtitle, loading, trend }: MetricCardProps) {
+export default function MetricCard({ title, value, icon, color, bg, subtitle, loading, trend, onClick }: MetricCardProps) {
   return (
-    <Card
-      sx={{
-        height: '100%',
-        position: 'relative',
-        overflow: 'hidden',
-        transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-        '&:hover': {
-          transform: 'translateY(-2px)',
-          boxShadow: '0 12px 28px rgba(0,0,0,0.09)',
-        },
-      }}
+    <motion.div
+      whileHover={{ y: -2 }}
+      transition={{ duration: 0.15 }}
+      className={cn(
+        'relative bg-card border border-border rounded-xl overflow-hidden shadow-card',
+        onClick && 'cursor-pointer'
+      )}
+      onClick={onClick}
     >
-      {/* Accent bar */}
-      <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, bgcolor: color, borderRadius: '14px 14px 0 0' }} />
+      {/* accent top bar */}
+      <div className="absolute top-0 left-0 right-0 h-0.5 rounded-t-xl" style={{ background: color }} />
 
-      <CardContent sx={{ p: '20px 20px 16px !important' }}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1.5 }}>
-          <Typography
-            variant="overline"
-            sx={{ color: '#64748b', fontSize: '0.6875rem', letterSpacing: '0.08em', fontWeight: 700, lineHeight: 1 }}
-          >
+      <div className="p-5">
+        <div className="flex items-start justify-between mb-3">
+          <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-muted-foreground">
             {title}
-          </Typography>
-          <Box
-            sx={{
-              width: 36, height: 36, borderRadius: '10px', bgcolor: bg,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              '& .MuiSvgIcon-root': { color, fontSize: 18 },
-            }}
+          </span>
+          <div
+            className="size-9 rounded-lg flex items-center justify-center text-sm flex-shrink-0 [&_svg]:size-4.5"
+            style={{ background: bg, color }}
           >
             {icon}
-          </Box>
-        </Box>
+          </div>
+        </div>
 
         {loading ? (
-          <Skeleton width={64} height={44} sx={{ borderRadius: 2 }} />
+          <>
+            <Skeleton className="h-8 w-16 mb-2" />
+            <Skeleton className="h-3 w-24" />
+          </>
         ) : (
-          <Typography
-            sx={{ fontWeight: 800, fontSize: '2rem', lineHeight: 1, color: '#0f172a', letterSpacing: '-0.04em' }}
-          >
-            {value}
-          </Typography>
+          <>
+            <div className="text-[2rem] font-extrabold tracking-tight leading-none text-foreground tabular-nums">
+              {value}
+            </div>
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              {subtitle && (
+                <span className="text-xs text-muted-foreground font-medium">{subtitle}</span>
+              )}
+              {trend && (
+                <span className={cn(
+                  'inline-flex items-center gap-0.5 text-[0.6875rem] font-bold px-1.5 py-0.5 rounded-full',
+                  trend.value >= 0
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                    : 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'
+                )}>
+                  {trend.value >= 0
+                    ? <TrendingUp className="size-2.5" />
+                    : <TrendingDown className="size-2.5" />}
+                  {trend.value >= 0 ? '+' : ''}{trend.value}%
+                </span>
+              )}
+            </div>
+          </>
         )}
-
-        <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-          {subtitle && (
-            <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 500 }}>
-              {subtitle}
-            </Typography>
-          )}
-          {trend && (
-            <Box sx={{
-              display: 'inline-flex', alignItems: 'center', gap: 0.25,
-              px: 0.75, py: 0.125, borderRadius: 4,
-              bgcolor: trend.value >= 0 ? '#ecfdf5' : '#fff1f2',
-              color: trend.value >= 0 ? '#059669' : '#dc2626',
-            }}>
-              <Typography sx={{ fontSize: '0.7rem', fontWeight: 700 }}>
-                {trend.value >= 0 ? '+' : ''}{trend.value}%
-              </Typography>
-            </Box>
-          )}
-        </Box>
-      </CardContent>
-    </Card>
+      </div>
+    </motion.div>
   );
 }

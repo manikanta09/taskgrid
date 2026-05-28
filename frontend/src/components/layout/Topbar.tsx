@@ -1,32 +1,34 @@
-import {
-  AppBar, Toolbar, Typography, IconButton, Box, Tooltip,
-  Avatar, Menu, MenuItem, Divider, Badge, ListItemIcon, Chip,
-} from '@mui/material';
-import {
-  NotificationsNoneRounded, LogoutRounded, PersonRounded,
-  KeyboardArrowDownRounded, SettingsRounded, HelpOutlineRounded,
-} from '@mui/icons-material';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../../store/authStore';
-import { authApi } from '../../api/auth';
-import { SIDEBAR_WIDTH, BRAND } from '../../theme';
+import { Bell, HelpCircle, LogOut, User, Settings, Moon, Sun, ChevronDown } from 'lucide-react';
+import { SIDEBAR_WIDTH } from './Sidebar';
+import { useAuthStore } from '@/store/authStore';
+import { useTheme } from '@/lib/theme';
+import { authApi } from '@/api/auth';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 interface TopbarProps { title: string }
 
-const ROLE_CHIP: Record<string, { label: string; color: string; bg: string }> = {
-  admin:    { label: 'Admin',    color: '#dc2626', bg: '#fff1f2' },
-  manager:  { label: 'Manager',  color: '#6366f1', bg: '#eef2ff' },
-  operator: { label: 'Operator', color: '#059669', bg: '#ecfdf5' },
-  viewer:   { label: 'Viewer',   color: '#64748b', bg: '#f1f5f9' },
+const ROLE_BADGE: Record<string, { label: string; classes: string }> = {
+  admin:    { label: 'Admin',    classes: 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' },
+  manager:  { label: 'Manager',  classes: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400' },
+  operator: { label: 'Operator', classes: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
+  viewer:   { label: 'Viewer',   classes: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' },
 };
 
 export default function Topbar({ title }: TopbarProps) {
   const { user, clearAuth } = useAuthStore();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
-  const [anchor, setAnchor] = useState<null | HTMLElement>(null);
   const role = user?.role ?? 'viewer';
-  const roleCfg = ROLE_CHIP[role] ?? ROLE_CHIP.viewer;
+  const roleBadge = ROLE_BADGE[role] ?? ROLE_BADGE.viewer;
 
   const handleLogout = async () => {
     try { await authApi.logout(); } catch {}
@@ -35,140 +37,90 @@ export default function Topbar({ title }: TopbarProps) {
   };
 
   return (
-    <AppBar
-      position="fixed"
-      elevation={0}
-      sx={{
-        width: `calc(100% - ${SIDEBAR_WIDTH}px)`,
-        ml: `${SIDEBAR_WIDTH}px`,
-        backgroundColor: 'rgba(248,250,252,0.92)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        borderBottom: `1px solid ${BRAND.slate200}`,
-        color: 'text.primary',
-      }}
-    >
-      <Toolbar sx={{ minHeight: '58px !important', px: 3 }}>
-        {/* Page title */}
-        <Box sx={{ flex: 1 }}>
-          <Typography variant="h6" sx={{
-            fontWeight: 700, color: BRAND.slate900, fontSize: '0.9375rem',
-            letterSpacing: '-0.02em',
-          }}>
-            {title}
-          </Typography>
-        </Box>
+    <TooltipProvider delayDuration={0}>
+      <header
+        className="fixed top-0 right-0 z-20 flex items-center h-14 px-6 border-b border-border bg-background/90 backdrop-blur-xl"
+        style={{ left: SIDEBAR_WIDTH }}
+      >
+        <h1 className="flex-1 text-[0.9375rem] font-semibold tracking-tight text-foreground">{title}</h1>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          {/* Help */}
-          <Tooltip title="Help & docs" arrow>
-            <IconButton size="small" sx={{ color: BRAND.slate400, width: 34, height: 34 }}>
-              <HelpOutlineRounded sx={{ fontSize: 18 }} />
-            </IconButton>
+        <div className="flex items-center gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground" onClick={toggleTheme}>
+                {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</TooltipContent>
           </Tooltip>
 
-          {/* Notifications */}
-          <Tooltip title="Notifications" arrow>
-            <IconButton size="small" sx={{ color: BRAND.slate400, width: 34, height: 34 }}>
-              <Badge
-                badgeContent={0}
-                color="error"
-                sx={{ '& .MuiBadge-badge': { fontSize: '0.6rem', minWidth: 14, height: 14 } }}
-              >
-                <NotificationsNoneRounded sx={{ fontSize: 18 }} />
-              </Badge>
-            </IconButton>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground">
+                <HelpCircle className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Help & docs</TooltipContent>
           </Tooltip>
 
-          {/* Divider */}
-          <Box sx={{ width: 1, height: 22, bgcolor: BRAND.slate200, mx: 0.5 }} />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground relative">
+                <Bell className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Notifications</TooltipContent>
+          </Tooltip>
 
-          {/* User menu trigger */}
-          <Box
-            onClick={(e) => setAnchor(e.currentTarget)}
-            sx={{
-              display: 'flex', alignItems: 'center', gap: 1, ml: 0.5,
-              cursor: 'pointer', borderRadius: 2, px: 1.25, py: 0.625,
-              border: `1px solid transparent`,
-              '&:hover': { bgcolor: BRAND.slate100, borderColor: BRAND.slate200 },
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <Avatar
-              sx={{
-                width: 28, height: 28, fontSize: '0.75rem',
-                background: 'linear-gradient(135deg, #6366f1, #7c3aed)',
-              }}
-            >
-              {user?.full_name?.charAt(0)}
-            </Avatar>
-            <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
-              <Typography sx={{
-                fontWeight: 600, fontSize: '0.8125rem', display: 'block',
-                lineHeight: 1.2, color: BRAND.slate900, letterSpacing: '-0.01em',
-              }}>
-                {user?.full_name?.split(' ')[0]}
-              </Typography>
-              <Typography sx={{ color: BRAND.slate400, fontSize: '0.68rem', lineHeight: 1 }}>
-                {roleCfg.label}
-              </Typography>
-            </Box>
-            <KeyboardArrowDownRounded sx={{ fontSize: 15, color: BRAND.slate400, ml: -0.25 }} />
-          </Box>
-        </Box>
+          <div className="w-px h-5 bg-border mx-1" />
 
-        <Menu
-          anchorEl={anchor}
-          open={Boolean(anchor)}
-          onClose={() => setAnchor(null)}
-          transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-          anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-          PaperProps={{
-            elevation: 0,
-            sx: {
-              mt: 1, minWidth: 220, borderRadius: 2.5,
-              border: `1px solid ${BRAND.slate200}`,
-              boxShadow: '0 20px 40px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04)',
-            },
-          }}
-        >
-          <Box sx={{ px: 2, py: 1.75 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <Avatar sx={{ width: 36, height: 36, background: 'linear-gradient(135deg, #6366f1, #7c3aed)', fontSize: '0.875rem' }}>
-                {user?.full_name?.charAt(0)}
-              </Avatar>
-              <Box>
-                <Typography variant="subtitle2" sx={{ lineHeight: 1.3 }}>{user?.full_name}</Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.3 }}>{user?.email}</Typography>
-              </Box>
-            </Box>
-            <Chip
-              label={roleCfg.label}
-              size="small"
-              sx={{ mt: 1.25, bgcolor: roleCfg.bg, color: roleCfg.color, fontWeight: 700, fontSize: '0.68rem', height: 20 }}
-            />
-          </Box>
-          <Divider sx={{ my: 0.5 }} />
-          <MenuItem dense sx={{ gap: 1.5, py: 1, px: 2, borderRadius: 1.5, mx: 0.5 }} onClick={() => setAnchor(null)}>
-            <ListItemIcon sx={{ minWidth: 'auto' }}><PersonRounded fontSize="small" sx={{ color: BRAND.slate400 }} /></ListItemIcon>
-            <Typography variant="body2" fontWeight={500}>Profile settings</Typography>
-          </MenuItem>
-          <MenuItem dense sx={{ gap: 1.5, py: 1, px: 2, borderRadius: 1.5, mx: 0.5 }} onClick={() => setAnchor(null)}>
-            <ListItemIcon sx={{ minWidth: 'auto' }}><SettingsRounded fontSize="small" sx={{ color: BRAND.slate400 }} /></ListItemIcon>
-            <Typography variant="body2" fontWeight={500}>Preferences</Typography>
-          </MenuItem>
-          <Divider sx={{ my: 0.5 }} />
-          <MenuItem
-            dense
-            onClick={handleLogout}
-            sx={{ gap: 1.5, py: 1, px: 2, borderRadius: 1.5, mx: 0.5, mb: 0.5, color: 'error.main',
-              '&:hover': { bgcolor: '#fff1f2' } }}
-          >
-            <ListItemIcon sx={{ minWidth: 'auto' }}><LogoutRounded fontSize="small" color="error" /></ListItemIcon>
-            <Typography variant="body2" fontWeight={600} color="error.main">Sign out</Typography>
-          </MenuItem>
-        </Menu>
-      </Toolbar>
-    </AppBar>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-2 pl-1.5 pr-2.5 py-1.5 rounded-lg border border-transparent hover:bg-accent hover:border-border transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-ring">
+                <Avatar className="size-7">
+                  <AvatarFallback className="text-xs">{user?.full_name?.charAt(0)}</AvatarFallback>
+                </Avatar>
+                <div className="hidden sm:block text-left">
+                  <p className="text-[0.8125rem] font-semibold text-foreground leading-tight">{user?.full_name?.split(' ')[0]}</p>
+                  <p className="text-[0.7rem] text-muted-foreground leading-tight">{roleBadge.label}</p>
+                </div>
+                <ChevronDown className="size-3.5 text-muted-foreground ml-0.5 hidden sm:block" />
+              </button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent align="end" className="w-56">
+              <div className="px-3 py-2.5">
+                <div className="flex items-center gap-2.5 mb-2">
+                  <Avatar className="size-9">
+                    <AvatarFallback>{user?.full_name?.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold truncate">{user?.full_name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                  </div>
+                </div>
+                <span className={cn('inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold', roleBadge.classes)}>
+                  {roleBadge.label}
+                </span>
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem>
+                <User className="size-4" />
+                Profile settings
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <Settings className="size-4" />
+                Preferences
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                <LogOut className="size-4" />
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </header>
+    </TooltipProvider>
   );
 }

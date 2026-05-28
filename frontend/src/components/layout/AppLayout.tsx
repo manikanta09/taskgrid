@@ -1,17 +1,17 @@
-import { Box } from '@mui/material';
 import { Outlet, useLocation } from 'react-router-dom';
-import Sidebar from './Sidebar';
+import { AnimatePresence, motion } from 'framer-motion';
+import Sidebar, { SIDEBAR_WIDTH } from './Sidebar';
 import Topbar from './Topbar';
-import { SIDEBAR_WIDTH } from '../../theme';
+import { Toaster } from 'sonner';
 
 const PAGE_TITLES: Record<string, string> = {
-  '/':            'Dashboard',
-  '/tasks':       'Task Queue',
-  '/tasks/mine':  'My Tasks',
-  '/approvals':   'Approval Inbox',
-  '/workflows':   'Workflows',
+  '/':              'Dashboard',
+  '/tasks':         'Task Queue',
+  '/tasks/mine':    'My Tasks',
+  '/approvals':     'Approval Inbox',
+  '/workflows':     'Workflows',
   '/workflows/new': 'New Workflow',
-  '/admin':       'Admin Overview',
+  '/admin':         'Admin Overview',
 };
 
 function getTitle(pathname: string): string {
@@ -23,24 +23,32 @@ function getTitle(pathname: string): string {
 export default function AppLayout() {
   const location = useLocation();
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
+    <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, ml: `${SIDEBAR_WIDTH}px` }}>
+      <div className="flex-1 flex flex-col min-w-0" style={{ marginLeft: SIDEBAR_WIDTH }}>
         <Topbar title={getTitle(location.pathname)} />
-        <Box
-          component="main"
-          sx={{
-            flex: 1,
-            p: '28px 32px',
-            mt: '58px',
-            maxWidth: '100%',
-            overflowX: 'hidden',
-            animation: 'fadeSlideIn 0.25s ease both',
-          }}
-        >
-          <Outlet />
-        </Box>
-      </Box>
-    </Box>
+        <main className="flex-1 px-8 pb-8" style={{ paddingTop: 'calc(56px + 28px)' }}>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.18 }}
+            >
+              <Outlet />
+            </motion.div>
+          </AnimatePresence>
+        </main>
+      </div>
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          classNames: {
+            toast: 'bg-card border border-border text-foreground shadow-modal rounded-xl text-sm font-medium',
+          },
+        }}
+      />
+    </div>
   );
 }

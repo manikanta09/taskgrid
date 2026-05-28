@@ -6,7 +6,16 @@ from functools import lru_cache
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    # Database — set to PostgreSQL DSN for production
+    # e.g. postgresql://taskgrid:secret@localhost:5432/taskgrid
     DATABASE_URL: str = "sqlite:///./data/taskgrid.db"
+
+    # PostgreSQL connection pool (ignored for SQLite)
+    DB_POOL_SIZE: int = 10
+    DB_MAX_OVERFLOW: int = 20
+    DB_POOL_PRE_PING: bool = True
+    DB_POOL_RECYCLE: int = 1800  # recycle connections every 30 min
+
     SECRET_KEY: str = "dev-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
@@ -21,6 +30,10 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",")]
+
+    @property
+    def is_postgres(self) -> bool:
+        return self.DATABASE_URL.startswith("postgresql")
 
 
 @lru_cache

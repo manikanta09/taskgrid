@@ -8,6 +8,7 @@ export interface WorkflowStep {
   assignee_role: string;
   sla_hours?: number;
   instructions?: string;
+  requires_approval?: boolean;
 }
 
 export interface Workflow {

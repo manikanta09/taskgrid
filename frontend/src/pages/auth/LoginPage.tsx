@@ -1,16 +1,13 @@
-import {
-  Box, TextField, Button, Typography, Alert,
-  InputAdornment, IconButton, CircularProgress, Divider,
-} from '@mui/material';
-import {
-  EmailRounded, LockRounded, Visibility, VisibilityOff,
-  TaskAltRounded, CheckRounded, ArrowForwardRounded,
-} from '@mui/icons-material';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authApi } from '../../api/auth';
-import { useAuthStore } from '../../store/authStore';
-import { apiError } from '../../api/client';
+import { motion } from 'framer-motion';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Zap, CheckCircle2 } from 'lucide-react';
+import { authApi } from '@/api/auth';
+import { useAuthStore } from '@/store/authStore';
+import { apiError } from '@/api/client';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 const FEATURES = [
   { icon: '⚡', title: 'Intelligent Routing', desc: 'AI-powered task assignment based on role, capacity, and SLA priority.' },
@@ -20,19 +17,19 @@ const FEATURES = [
 ];
 
 const DEMO_USERS = [
-  { role: 'Admin',    email: 'admin@taskgrid.io',   pw: 'admin123',   color: '#f87171' },
-  { role: 'Manager',  email: 'manager@taskgrid.io', pw: 'manager123', color: '#818cf8' },
-  { role: 'Operator', email: 'ops1@taskgrid.io',    pw: 'ops123',     color: '#34d399' },
+  { role: 'Admin',    email: 'admin@taskgrid.io',   pw: 'admin123',   color: '#f87171', bg: '#fee2e2' },
+  { role: 'Manager',  email: 'manager@taskgrid.io', pw: 'manager123', color: '#818cf8', bg: '#ede9fe' },
+  { role: 'Operator', email: 'ops1@taskgrid.io',    pw: 'ops123',     color: '#34d399', bg: '#d1fae5' },
 ];
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const { setAuth } = useAuthStore();
-  const [email, setEmail] = useState('admin@taskgrid.io');
+  const [email, setEmail]     = useState('admin@taskgrid.io');
   const [password, setPassword] = useState('admin123');
-  const [showPw, setShowPw] = useState(false);
+  const [showPw, setShowPw]   = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError]     = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,269 +47,178 @@ export default function LoginPage() {
   };
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#0a0f1e' }}>
-      {/* ── Left panel ──────────────────────────────────── */}
-      <Box
-        sx={{
-          display: { xs: 'none', lg: 'flex' },
-          flexDirection: 'column',
-          width: '45%',
-          p: '56px 52px',
-          position: 'relative',
-          overflow: 'hidden',
-          background: 'linear-gradient(160deg, #0c1225 0%, #111827 60%, #0c1836 100%)',
-          borderRight: '1px solid rgba(255,255,255,0.05)',
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            top: '-20%', left: '-10%',
-            width: '60%', height: '60%',
-            borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%)',
-            pointerEvents: 'none',
-          },
-          '&::after': {
-            content: '""',
-            position: 'absolute',
-            bottom: '-10%', right: '-5%',
-            width: '50%', height: '50%',
-            borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(124,58,237,0.1) 0%, transparent 70%)',
-            pointerEvents: 'none',
-          },
-        }}
-      >
-        {/* Dot grid decoration */}
-        <Box sx={{
-          position: 'absolute', inset: 0, pointerEvents: 'none',
-          backgroundImage: 'radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px)',
-          backgroundSize: '28px 28px',
-        }} />
+    <div className="flex min-h-screen bg-[#0a0f1e]">
+      {/* Left panel */}
+      <div className="hidden lg:flex flex-col w-[46%] p-14 relative overflow-hidden border-r border-white/5"
+        style={{ background: 'linear-gradient(160deg, #0c1225 0%, #111827 60%, #0c1836 100%)' }}>
+        {/* Dot grid */}
+        <div className="absolute inset-0 pointer-events-none"
+          style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
+        {/* Glow orbs */}
+        <div className="absolute -top-32 -left-20 size-96 rounded-full pointer-events-none"
+          style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%)' }} />
+        <div className="absolute -bottom-24 -right-10 size-80 rounded-full pointer-events-none"
+          style={{ background: 'radial-gradient(circle, rgba(124,58,237,0.1) 0%, transparent 70%)' }} />
 
         {/* Brand */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 'auto', position: 'relative' }}>
-          <Box sx={{
-            width: 42, height: 42, borderRadius: '12px',
-            background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 8px 24px rgba(99,102,241,0.5)',
-          }}>
-            <TaskAltRounded sx={{ color: 'white', fontSize: 22 }} />
-          </Box>
-          <Box>
-            <Typography sx={{ color: '#f1f5f9', fontWeight: 800, fontSize: '1.125rem', letterSpacing: '-0.02em', lineHeight: 1 }}>
-              TaskGrid
-            </Typography>
-            <Typography sx={{ color: '#6366f1', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', lineHeight: 1.4 }}>
-              Enterprise
-            </Typography>
-          </Box>
-        </Box>
+        <div className="flex items-center gap-3 relative z-10">
+          <div className="size-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-xl shadow-indigo-500/30">
+            <Zap className="size-5 text-white" />
+          </div>
+          <div>
+            <div className="text-base font-extrabold text-slate-100 tracking-tight">TaskGrid</div>
+            <div className="text-[0.6rem] font-bold uppercase tracking-widest text-indigo-400">Enterprise</div>
+          </div>
+        </div>
 
-        {/* Hero copy */}
-        <Box sx={{ position: 'relative', py: 6 }}>
-          <Typography sx={{ color: '#f8fafc', fontWeight: 800, fontSize: '2.25rem', letterSpacing: '-0.03em', lineHeight: 1.2, mb: 2 }}>
+        {/* Hero */}
+        <div className="relative z-10 py-16">
+          <motion.h2
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="text-[2.25rem] font-extrabold text-slate-50 leading-tight tracking-tight mb-3"
+          >
             Orchestrate work at{' '}
-            <Box component="span" sx={{
-              background: 'linear-gradient(135deg, #818cf8, #a78bfa)',
-              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-            }}>
+            <span className="bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
               enterprise scale
-            </Box>
-          </Typography>
-          <Typography sx={{ color: '#6b7280', fontSize: '1rem', lineHeight: 1.6, maxWidth: 380 }}>
+            </span>
+          </motion.h2>
+          <p className="text-[#6b7280] text-base leading-relaxed max-w-sm">
             Automate multi-step approval workflows, enforce SLAs, and give your team a single pane of glass for every task.
-          </Typography>
-        </Box>
+          </p>
+        </div>
 
-        {/* Feature list */}
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, position: 'relative', mb: 4 }}>
-          {FEATURES.map((f) => (
-            <Box key={f.title} sx={{ display: 'flex', gap: 2 }}>
-              <Box sx={{
-                width: 36, height: 36, borderRadius: '9px',
-                background: 'rgba(255,255,255,0.05)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '1rem', flexShrink: 0,
-              }}>
+        {/* Features */}
+        <div className="relative z-10 space-y-5 mb-10">
+          {FEATURES.map((f, i) => (
+            <motion.div
+              key={f.title}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.15 + i * 0.07 }}
+              className="flex gap-3"
+            >
+              <div className="size-9 rounded-lg bg-white/5 border border-white/8 flex items-center justify-center text-base flex-shrink-0">
                 {f.icon}
-              </Box>
-              <Box>
-                <Typography sx={{ color: '#e2e8f0', fontWeight: 600, fontSize: '0.875rem', lineHeight: 1.3 }}>
-                  {f.title}
-                </Typography>
-                <Typography sx={{ color: '#4b5563', fontSize: '0.8125rem', lineHeight: 1.5, mt: 0.25 }}>
-                  {f.desc}
-                </Typography>
-              </Box>
-            </Box>
+              </div>
+              <div>
+                <p className="text-[#e2e8f0] font-semibold text-sm">{f.title}</p>
+                <p className="text-[#4b5563] text-[0.8125rem] leading-relaxed mt-0.5">{f.desc}</p>
+              </div>
+            </motion.div>
           ))}
-        </Box>
+        </div>
 
-        {/* Social proof */}
-        <Box sx={{
-          p: 2, borderRadius: 2,
-          background: 'rgba(255,255,255,0.03)',
-          border: '1px solid rgba(255,255,255,0.06)',
-          position: 'relative',
-        }}>
-          <Box sx={{ display: 'flex', gap: 0.5, mb: 1 }}>
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Box key={i} component="span" sx={{ color: '#f59e0b', fontSize: '0.875rem' }}>★</Box>
-            ))}
-          </Box>
-          <Typography sx={{ color: '#d1d5db', fontSize: '0.8125rem', lineHeight: 1.6, fontStyle: 'italic' }}>
-            "TaskGrid reduced our approval cycle time by 67% in the first quarter. The SLA visibility alone paid for the platform."
-          </Typography>
-          <Typography sx={{ color: '#4b5563', fontSize: '0.75rem', mt: 1, fontWeight: 600 }}>
-            — Head of Operations, Fortune 500 Financial Services
-          </Typography>
-        </Box>
-      </Box>
+        {/* Testimonial */}
+        <div className="relative z-10 p-4 rounded-xl bg-white/3 border border-white/6">
+          <div className="flex gap-0.5 mb-2">{Array.from({ length: 5 }).map((_, i) => <span key={i} className="text-amber-400 text-sm">★</span>)}</div>
+          <p className="text-[#d1d5db] text-[0.8125rem] leading-relaxed italic">
+            "TaskGrid reduced our approval cycle time by 67% in the first quarter."
+          </p>
+          <p className="text-[#4b5563] text-xs mt-2 font-semibold">— Head of Operations, Fortune 500</p>
+        </div>
+      </div>
 
-      {/* ── Right panel ─────────────────────────────────── */}
-      <Box
-        sx={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          p: { xs: 3, sm: '48px 40px' },
-          position: 'relative',
-          bgcolor: '#f8fafc',
-          backgroundImage: 'radial-gradient(rgba(99,102,241,0.04) 1px, transparent 1px)',
-          backgroundSize: '24px 24px',
-        }}
-      >
-        <Box sx={{ width: '100%', maxWidth: 400 }}>
+      {/* Right panel */}
+      <div className="flex-1 flex flex-col items-center justify-center p-8 relative bg-slate-50 dark:bg-[#0f172a]"
+        style={{ backgroundImage: 'radial-gradient(rgba(99,102,241,0.04) 1px, transparent 1px)', backgroundSize: '24px 24px' }}>
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
+          className="w-full max-w-[380px]"
+        >
           {/* Mobile brand */}
-          <Box sx={{ display: { xs: 'flex', lg: 'none' }, alignItems: 'center', gap: 1.5, mb: 4, justifyContent: 'center' }}>
-            <Box sx={{
-              width: 40, height: 40, borderRadius: '10px',
-              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 16px rgba(99,102,241,0.4)',
-            }}>
-              <TaskAltRounded sx={{ color: 'white', fontSize: 20 }} />
-            </Box>
-            <Typography sx={{ fontWeight: 800, fontSize: '1.25rem', letterSpacing: '-0.02em' }}>TaskGrid</Typography>
-          </Box>
+          <div className="flex lg:hidden items-center gap-2.5 mb-8 justify-center">
+            <div className="size-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+              <Zap className="size-4.5 text-white" />
+            </div>
+            <span className="text-xl font-extrabold tracking-tight">TaskGrid</span>
+          </div>
 
-          <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.75, letterSpacing: '-0.025em' }}>
-            Sign in
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3.5 }}>
-            Access your TaskGrid workspace
-          </Typography>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground mb-1">Sign in</h1>
+          <p className="text-sm text-muted-foreground mb-6">Access your TaskGrid workspace</p>
 
           {error && (
-            <Alert severity="error" sx={{ mb: 2.5 }}>{error}</Alert>
+            <div className="mb-4 px-4 py-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm dark:bg-rose-900/20 dark:border-rose-800 dark:text-rose-400">
+              {error}
+            </div>
           )}
 
-          <form onSubmit={handleSubmit}>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <TextField
-                fullWidth label="Email address" type="email" value={email}
-                onChange={(e) => setEmail(e.target.value)} required
-                autoComplete="email"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <EmailRounded sx={{ fontSize: 17, color: '#94a3b8' }} />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-              <TextField
-                fullWidth label="Password" type={showPw ? 'text' : 'password'}
-                value={password} onChange={(e) => setPassword(e.target.value)} required
-                autoComplete="current-password"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <LockRounded sx={{ fontSize: 17, color: '#94a3b8' }} />
-                    </InputAdornment>
-                  ),
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton onClick={() => setShowPw(!showPw)} edge="end" size="small"
-                        sx={{ color: '#94a3b8' }}>
-                        {showPw ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
-              />
-              <Button
-                type="submit" fullWidth variant="contained" size="large"
-                disabled={loading}
-                endIcon={!loading && <ArrowForwardRounded />}
-                sx={{
-                  mt: 0.5, py: 1.375, fontWeight: 700, fontSize: '0.9375rem',
-                  background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-                  boxShadow: '0 4px 20px rgba(99,102,241,0.35)',
-                  '&:hover': {
-                    background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
-                    boxShadow: '0 8px 28px rgba(99,102,241,0.45)',
-                  },
-                }}
-              >
-                {loading ? <CircularProgress size={20} sx={{ color: 'white' }} /> : 'Continue'}
-              </Button>
-            </Box>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="email">Email address</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input
+                  id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                  className="pl-9" required autoComplete="email"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input
+                  id="password" type={showPw ? 'text' : 'password'} value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pl-9 pr-10" required autoComplete="current-password"
+                />
+                <button type="button" onClick={() => setShowPw(!showPw)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                  {showPw ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
+            </div>
+
+            <Button type="submit" className="w-full" variant="gradient" size="lg" disabled={loading}>
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <span className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Signing in…
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">Continue <ArrowRight className="size-4" /></span>
+              )}
+            </Button>
           </form>
 
-          <Divider sx={{ my: 3 }}>
-            <Typography variant="caption" sx={{ color: '#94a3b8', px: 1.5 }}>Demo access</Typography>
-          </Divider>
+          <div className="relative my-5">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
+            <div className="relative flex justify-center">
+              <span className="px-3 bg-slate-50 dark:bg-[#0f172a] text-xs text-muted-foreground">Demo access</span>
+            </div>
+          </div>
 
-          {/* Demo credentials */}
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+          <div className="space-y-2.5">
             {DEMO_USERS.map((c) => (
-              <Box
+              <button
                 key={c.role}
+                type="button"
                 onClick={() => { setEmail(c.email); setPassword(c.pw); }}
-                sx={{
-                  display: 'flex', alignItems: 'center', gap: 1.5,
-                  p: '10px 14px', borderRadius: 2, cursor: 'pointer',
-                  border: '1px solid #e2e8f0', bgcolor: '#fff',
-                  transition: 'all 0.15s ease',
-                  '&:hover': {
-                    borderColor: '#6366f1',
-                    boxShadow: '0 0 0 3px rgba(99,102,241,0.08)',
-                    bgcolor: '#fafafe',
-                  },
-                }}
+                className="w-full flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-indigo-300 hover:shadow-glow transition-all duration-150 text-left dark:hover:border-indigo-700"
               >
-                <Box sx={{
-                  width: 28, height: 28, borderRadius: '7px',
-                  bgcolor: `${c.color}18`, border: `1.5px solid ${c.color}30`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                }}>
-                  <Typography sx={{ color: c.color, fontSize: '0.7rem', fontWeight: 800 }}>
-                    {c.role[0]}
-                  </Typography>
-                </Box>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography sx={{ fontWeight: 600, fontSize: '0.8125rem', color: '#0f172a', lineHeight: 1.3 }}>
-                    {c.role}
-                  </Typography>
-                  <Typography sx={{ fontSize: '0.75rem', color: '#94a3b8', lineHeight: 1.3 }}>
-                    {c.email}
-                  </Typography>
-                </Box>
-                <CheckRounded sx={{ fontSize: 15, color: '#cbd5e1' }} />
-              </Box>
+                <div className="size-7 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold"
+                  style={{ background: c.bg, color: c.color }}>
+                  {c.role[0]}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground">{c.role}</p>
+                  <p className="text-xs text-muted-foreground truncate">{c.email}</p>
+                </div>
+                <CheckCircle2 className="size-4 text-border flex-shrink-0" />
+              </button>
             ))}
-          </Box>
+          </div>
 
-          <Typography variant="caption" sx={{ display: 'block', textAlign: 'center', color: '#cbd5e1', mt: 3 }}>
+          <p className="text-center text-xs text-muted-foreground/50 mt-6">
             Protected by enterprise-grade security · TLS 1.3
-          </Typography>
-        </Box>
-      </Box>
-    </Box>
+          </p>
+        </motion.div>
+      </div>
+    </div>
   );
 }

@@ -1,27 +1,21 @@
-import {
-  Grid, Card, CardContent, Typography, Box, Skeleton,
-  Divider, Chip, Avatar, Button,
-} from '@mui/material';
-import {
-  AssignmentRounded, HourglassTopRounded, ThumbsUpDownRounded,
-  CheckCircleRounded, AccountTreeRounded,
-  ArrowForwardRounded, FiberManualRecordRounded, EastRounded,
-} from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
 import {
   AreaChart, Area, PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   XAxis, YAxis, CartesianGrid,
 } from 'recharts';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { adminApi } from '../../api/approvals';
-import { tasksApi } from '../../api/tasks';
-import { useAuthStore } from '../../store/authStore';
-import { useNavigate } from 'react-router-dom';
-import MetricCard from '../../components/common/MetricCard';
-import StatusChip from '../../components/common/StatusChip';
-import AIInsightsPanel from '../../components/dashboard/AIInsightsPanel';
-import type { TaskStatus } from '../../types/task';
+import { ClipboardList, Hourglass, ThumbsUp, CheckCircle2, GitBranch, ArrowRight, Circle } from 'lucide-react';
+import { adminApi } from '@/api/approvals';
+import { tasksApi } from '@/api/tasks';
+import { useAuthStore } from '@/store/authStore';
+import MetricCard from '@/components/common/MetricCard';
+import { StatusBadge } from '@/components/common/StatusBadge';
+import AIInsightsPanel from '@/components/dashboard/AIInsightsPanel';
+import { Skeleton } from '@/components/ui/skeleton';
+import type { TaskStatus } from '@/types/task';
 
 dayjs.extend(relativeTime);
 
@@ -30,8 +24,7 @@ const STATUS_COLORS: Record<string, string> = {
   PENDING_APPROVAL: '#8b5cf6', COMPLETED: '#10b981',
   REJECTED: '#f43f5e', ESCALATED: '#f97316', CANCELLED: '#cbd5e1',
 };
-
-const PIE_COLORS = ['#94a3b8', '#3b82f6', '#f59e0b', '#8b5cf6', '#10b981', '#f43f5e', '#f97316'];
+const PIE_COLORS = ['#94a3b8','#3b82f6','#f59e0b','#8b5cf6','#10b981','#f43f5e','#f97316'];
 
 const areaData = [
   { name: 'Mon', completed: 4, escalated: 1 },
@@ -46,32 +39,27 @@ const areaData = [
 function SectionHeader({ title, action, count }: { title: string; action?: string; count?: number }) {
   const navigate = useNavigate();
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Typography variant="subtitle1">{title}</Typography>
+    <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center gap-2">
+        <p className="text-sm font-bold text-foreground">{title}</p>
         {count !== undefined && (
-          <Chip label={count} size="small"
-            sx={{ height: 18, fontSize: '0.68rem', bgcolor: '#f1f5f9', color: '#64748b', fontWeight: 700 }} />
+          <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-bold bg-muted text-muted-foreground">{count}</span>
         )}
-      </Box>
+      </div>
       {action && (
-        <Button
-          size="small" endIcon={<EastRounded sx={{ fontSize: 13 }} />}
-          onClick={() => navigate(action)}
-          sx={{ color: '#6366f1', fontSize: '0.75rem', fontWeight: 600, p: '2px 6px', minWidth: 0 }}
-        >
-          View all
-        </Button>
+        <button onClick={() => navigate(action)} className="flex items-center gap-1 text-xs font-semibold text-indigo-500 hover:text-indigo-600 transition-colors">
+          View all <ArrowRight className="size-3" />
+        </button>
       )}
-    </Box>
+    </div>
   );
 }
 
 export default function DashboardPage() {
-  const navigate  = useNavigate();
-  const { user }  = useAuthStore();
-  const hour      = dayjs().hour();
-  const greeting  = hour < 5 ? 'Good night' : hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const hour     = dayjs().hour();
+  const greeting = hour < 5 ? 'Good night' : hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['admin-stats'],
@@ -79,15 +67,8 @@ export default function DashboardPage() {
     refetchInterval: 30000,
   });
 
-  const { data: myTasks } = useQuery({
-    queryKey: ['my-tasks-dashboard'],
-    queryFn: () => tasksApi.mine({ limit: 6 }),
-  });
-
-  const { data: pendingTasks } = useQuery({
-    queryKey: ['tasks-pending-approval'],
-    queryFn: () => tasksApi.list({ status: 'PENDING_APPROVAL', limit: 6 }),
-  });
+  const { data: myTasks }      = useQuery({ queryKey: ['my-tasks-dashboard'],     queryFn: () => tasksApi.mine({ limit: 6 }) });
+  const { data: pendingTasks } = useQuery({ queryKey: ['tasks-pending-approval'], queryFn: () => tasksApi.list({ status: 'PENDING_APPROVAL', limit: 6 }) });
 
   const pieData = stats
     ? [
@@ -108,253 +89,183 @@ export default function DashboardPage() {
     : 0;
 
   return (
-    <Box sx={{ animation: 'fadeSlideIn 0.3s ease both' }}>
-
-      {/* ── Greeting hero ──────────────────────────────── */}
-      <Box sx={{
-        mb: 3.5, p: '20px 24px',
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)',
-        borderRadius: 3, position: 'relative', overflow: 'hidden',
-        '&::after': {
-          content: '""', position: 'absolute', right: -60, top: -60,
-          width: 240, height: 240, borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(99,102,241,0.18) 0%, transparent 70%)',
-          pointerEvents: 'none',
-        },
-      }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Avatar sx={{ width: 44, height: 44, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', fontWeight: 700, fontSize: '1.125rem' }}>
+    <div className="space-y-5">
+      {/* Greeting hero */}
+      <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative overflow-hidden rounded-xl p-5"
+        style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)' }}
+      >
+        <div className="absolute -top-16 -right-16 size-60 rounded-full pointer-events-none"
+          style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.18) 0%, transparent 70%)' }} />
+        <div className="relative flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="size-11 rounded-xl flex items-center justify-center text-white font-bold text-lg flex-shrink-0"
+              style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
               {user?.full_name?.charAt(0)}
-            </Avatar>
-            <Box>
-              <Typography sx={{ color: '#94a3b8', fontSize: '0.8125rem', fontWeight: 500, lineHeight: 1 }}>
-                {greeting}
-              </Typography>
-              <Typography sx={{ color: '#f1f5f9', fontWeight: 700, fontSize: '1.25rem', letterSpacing: '-0.02em', mt: 0.25 }}>
-                {user?.full_name?.split(' ')[0]} 👋
-              </Typography>
-            </Box>
-          </Box>
-          <Box sx={{ textAlign: 'right', display: { xs: 'none', sm: 'block' } }}>
-            <Typography sx={{ color: '#475569', fontSize: '0.75rem', fontWeight: 600 }}>
-              {dayjs().format('dddd, MMMM D')}
-            </Typography>
-            <Typography sx={{ color: '#6366f1', fontSize: '0.8125rem', fontWeight: 600, mt: 0.25 }}>
-              AI analysis ready
-            </Typography>
-          </Box>
-        </Box>
-      </Box>
+            </div>
+            <div>
+              <p className="text-slate-400 text-[0.8125rem] font-medium leading-none">{greeting}</p>
+              <p className="text-slate-100 font-bold text-xl tracking-tight mt-1">{user?.full_name?.split(' ')[0]} 👋</p>
+            </div>
+          </div>
+          <div className="hidden sm:block text-right">
+            <p className="text-slate-500 text-xs font-semibold">{dayjs().format('dddd, MMMM D')}</p>
+            <p className="text-indigo-400 text-[0.8125rem] font-semibold mt-0.5">AI analysis ready</p>
+          </div>
+        </div>
+      </motion.div>
 
-      {/* ── Metrics ───────────────────────────────────── */}
-      <Grid container spacing={2.5} sx={{ mb: 3 }}>
+      {/* Metric cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { title: 'Open Tasks', color: '#3b82f6', bg: '#eff6ff', icon: <AssignmentRounded />,
-            value: stats ? stats.tasks.created + stats.tasks.assigned : 0,
-            subtitle: 'Awaiting action', trend: { value: 12, label: '' } },
-          { title: 'In Progress', color: '#f59e0b', bg: '#fffbeb', icon: <HourglassTopRounded />,
-            value: stats?.tasks.in_progress ?? 0,
-            subtitle: 'Active right now', trend: { value: 5, label: '' } },
-          { title: 'Pending Approval', color: '#8b5cf6', bg: '#f5f3ff', icon: <ThumbsUpDownRounded />,
-            value: stats?.tasks.pending_approval ?? 0,
-            subtitle: 'Awaiting decision', trend: { value: -3, label: '' } },
-          { title: 'Completed Today', color: '#10b981', bg: '#ecfdf5', icon: <CheckCircleRounded />,
-            value: stats?.tasks.completed_today ?? 0,
-            subtitle: 'Last 24 hours', trend: { value: 18, label: '' } },
+          { title: 'Open Tasks',       icon: <ClipboardList className="size-5" />, color: '#3b82f6', bg: '#eff6ff', value: stats ? stats.tasks.created + stats.tasks.assigned : 0, subtitle: 'Awaiting action',   trend: { value: 12, label: '' } },
+          { title: 'In Progress',      icon: <Hourglass      className="size-5" />, color: '#f59e0b', bg: '#fffbeb', value: stats?.tasks.in_progress ?? 0,      subtitle: 'Active right now',  trend: { value: 5,  label: '' } },
+          { title: 'Pending Approval', icon: <ThumbsUp       className="size-5" />, color: '#8b5cf6', bg: '#f5f3ff', value: stats?.tasks.pending_approval ?? 0, subtitle: 'Awaiting decision', trend: { value: -3, label: '' } },
+          { title: 'Completed Today',  icon: <CheckCircle2   className="size-5" />, color: '#10b981', bg: '#ecfdf5', value: stats?.tasks.completed_today ?? 0,   subtitle: 'Last 24 hours',     trend: { value: 18, label: '' } },
         ].map((m) => (
-          <Grid item xs={12} sm={6} lg={3} key={m.title}>
-            <MetricCard {...m} loading={statsLoading} />
-          </Grid>
+          <MetricCard key={m.title} {...m} loading={statsLoading} />
         ))}
-      </Grid>
+      </div>
 
-      {/* ── Charts ────────────────────────────────────── */}
-      <Grid container spacing={2.5} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={7}>
-          <Card sx={{ height: 300 }}>
-            <CardContent sx={{ p: '20px 20px 0 !important' }}>
-              <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2 }}>
-                <Box>
-                  <Typography variant="subtitle1">Weekly Throughput</Typography>
-                  <Typography variant="caption" color="text.secondary">Completed vs escalated tasks</Typography>
-                </Box>
-                <Box sx={{ display: 'flex', gap: 1.5 }}>
-                  {[{ color: '#10b981', label: 'Completed' }, { color: '#f97316', label: 'Escalated' }].map((l) => (
-                    <Box key={l.label} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: l.color }} />
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>{l.label}</Typography>
-                    </Box>
-                  ))}
-                </Box>
-              </Box>
-            </CardContent>
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={areaData} margin={{ top: 0, right: 20, left: -10, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="gComplete" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.15} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="gEscalate" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#f97316" stopOpacity={0.15} />
-                    <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={28} />
-                <Tooltip
-                  contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}
-                  cursor={{ stroke: '#e2e8f0', strokeWidth: 1 }}
-                />
-                <Area type="monotone" dataKey="completed" name="Completed" stroke="#10b981" strokeWidth={2}
-                  fill="url(#gComplete)" dot={false} activeDot={{ r: 4, fill: '#10b981' }} />
-                <Area type="monotone" dataKey="escalated" name="Escalated" stroke="#f97316" strokeWidth={2}
-                  fill="url(#gEscalate)" dot={false} activeDot={{ r: 4, fill: '#f97316' }} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </Card>
-        </Grid>
+      {/* Charts row */}
+      <div className="grid grid-cols-1 md:grid-cols-7 gap-5">
+        {/* Area chart */}
+        <div className="md:col-span-4 bg-card border border-border rounded-xl p-5 shadow-card">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <p className="text-sm font-bold text-foreground">Weekly Throughput</p>
+              <p className="text-xs text-muted-foreground">Completed vs escalated tasks</p>
+            </div>
+            <div className="flex gap-3">
+              {[{ color: '#10b981', label: 'Completed' }, { color: '#f97316', label: 'Escalated' }].map((l) => (
+                <div key={l.label} className="flex items-center gap-1.5">
+                  <div className="size-2 rounded-full" style={{ background: l.color }} />
+                  <span className="text-xs text-muted-foreground">{l.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <AreaChart data={areaData} margin={{ top: 0, right: 10, left: -10, bottom: 0 }}>
+              <defs>
+                <linearGradient id="gComplete" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor="#10b981" stopOpacity={0.15} />
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}    />
+                </linearGradient>
+                <linearGradient id="gEscalate" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor="#f97316" stopOpacity={0.15} />
+                  <stop offset="95%" stopColor="#f97316" stopOpacity={0}    />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={24} />
+              <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid hsl(var(--border))', fontSize: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.08)', background: 'hsl(var(--card))' }} />
+              <Area type="monotone" dataKey="completed" name="Completed" stroke="#10b981" strokeWidth={2} fill="url(#gComplete)" dot={false} activeDot={{ r: 4, fill: '#10b981' }} />
+              <Area type="monotone" dataKey="escalated" name="Escalated"  stroke="#f97316" strokeWidth={2} fill="url(#gEscalate)" dot={false} activeDot={{ r: 4, fill: '#f97316' }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
 
-        <Grid item xs={12} md={5}>
-          <Card sx={{ height: 300 }}>
-            <CardContent sx={{ p: '20px !important' }}>
-              <Box sx={{ mb: 1 }}>
-                <Typography variant="subtitle1">Status Distribution</Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {statsLoading ? <Skeleton width={100} component="span" /> : `${totalTasks} total tasks`}
-                </Typography>
-              </Box>
-              {statsLoading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', pt: 4 }}>
-                  <Skeleton variant="circular" width={160} height={160} />
-                </Box>
-              ) : (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <ResponsiveContainer width={160} height={220}>
-                    <PieChart>
-                      <Pie data={pieData} cx="50%" cy="45%" innerRadius={52} outerRadius={72}
-                        paddingAngle={3} dataKey="value" strokeWidth={0}>
-                        {pieData.map((entry, i) => (
-                          <Cell key={entry.name} fill={STATUS_COLORS[entry.key] ?? PIE_COLORS[i % PIE_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+        {/* Pie chart */}
+        <div className="md:col-span-3 bg-card border border-border rounded-xl p-5 shadow-card">
+          <p className="text-sm font-bold text-foreground mb-0.5">Status Distribution</p>
+          <p className="text-xs text-muted-foreground mb-4">
+            {statsLoading ? <Skeleton className="h-3 w-20 inline-block" /> : `${totalTasks} total tasks`}
+          </p>
+          {statsLoading ? (
+            <div className="flex justify-center pt-4"><Skeleton className="size-40 rounded-full" /></div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <ResponsiveContainer width={150} height={200}>
+                <PieChart>
+                  <Pie data={pieData} cx="50%" cy="45%" innerRadius={48} outerRadius={68} paddingAngle={3} dataKey="value" strokeWidth={0}>
                     {pieData.map((entry, i) => (
-                      <Box key={entry.name} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, justifyContent: 'space-between' }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.625 }}>
-                          <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: STATUS_COLORS[entry.key] ?? PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
-                          <Typography sx={{ fontSize: '0.72rem', color: '#475569', fontWeight: 500 }}>{entry.name}</Typography>
-                        </Box>
-                        <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#0f172a' }}>{entry.value}</Typography>
-                      </Box>
+                      <Cell key={entry.name} fill={STATUS_COLORS[entry.key] ?? PIE_COLORS[i % PIE_COLORS.length]} />
                     ))}
-                  </Box>
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+                  </Pie>
+                  <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid hsl(var(--border))', fontSize: 12, background: 'hsl(var(--card))' }} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex-1 space-y-1.5">
+                {pieData.map((entry, i) => (
+                  <div key={entry.name} className="flex items-center justify-between gap-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <div className="size-1.5 rounded-full flex-shrink-0" style={{ background: STATUS_COLORS[entry.key] ?? PIE_COLORS[i % PIE_COLORS.length] }} />
+                      <span className="text-[0.72rem] text-muted-foreground font-medium">{entry.name}</span>
+                    </div>
+                    <span className="text-[0.72rem] font-bold text-foreground">{entry.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
-      {/* ── AI Operational Intelligence ─────────────── */}
-      <Box sx={{ mb: 3 }}>
-        <AIInsightsPanel stats={stats} statsLoading={statsLoading} />
-      </Box>
+      {/* AI Insights */}
+      <AIInsightsPanel stats={stats} statsLoading={statsLoading} />
 
-      {/* ── My Tasks + Pending Approvals ─────────────── */}
-      <Grid container spacing={2.5}>
-        <Grid item xs={12} md={6}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent sx={{ p: '20px !important' }}>
-              <SectionHeader title="My Tasks" action="/tasks/mine" count={myTasks?.total} />
-              {!myTasks?.items.length ? (
-                <Box sx={{ py: 5, textAlign: 'center' }}>
-                  <CheckCircleRounded sx={{ fontSize: 32, color: '#10b981', mb: 1 }} />
-                  <Typography variant="body2" color="text.secondary">No tasks assigned to you</Typography>
-                </Box>
-              ) : (
-                <Box>
-                  {myTasks.items.slice(0, 6).map((task, i) => (
-                    <Box key={task.id} onClick={() => navigate(`/tasks/${task.id}`)} sx={{ cursor: 'pointer' }}>
-                      <Box sx={{
-                        display: 'flex', alignItems: 'center', gap: 1.25, py: 1.375,
-                        '&:hover .task-title': { color: '#6366f1' },
-                      }}>
-                        <FiberManualRecordRounded sx={{ fontSize: 8, color: STATUS_COLORS[task.status] ?? '#94a3b8', flexShrink: 0 }} />
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography className="task-title" sx={{
-                            fontWeight: 600, fontSize: '0.8125rem', color: '#0f172a',
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', transition: 'color 0.15s',
-                          }}>
-                            {task.title}
-                          </Typography>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.25 }}>
-                            <StatusChip status={task.status as TaskStatus} />
-                            <Typography variant="caption" sx={{ color: '#94a3b8' }}>· {dayjs(task.updated_at).fromNow()}</Typography>
-                          </Box>
-                        </Box>
-                        <ArrowForwardRounded sx={{ fontSize: 14, color: '#cbd5e1', flexShrink: 0 }} />
-                      </Box>
-                      {i < myTasks.items.length - 1 && <Divider />}
-                    </Box>
-                  ))}
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
+      {/* My Tasks + Pending Approvals */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {/* My Tasks */}
+        <div className="bg-card border border-border rounded-xl p-5 shadow-card">
+          <SectionHeader title="My Tasks" action="/tasks/mine" count={myTasks?.total} />
+          {!myTasks?.items.length ? (
+            <div className="py-8 text-center">
+              <CheckCircle2 className="size-8 text-emerald-500 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">No tasks assigned to you</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {myTasks.items.slice(0, 6).map((task) => (
+                <div key={task.id} onClick={() => navigate(`/tasks/${task.id}`)}
+                  className="flex items-center gap-3 py-3 cursor-pointer group">
+                  <Circle className="size-2 flex-shrink-0" style={{ color: STATUS_COLORS[task.status] ?? '#94a3b8', fill: STATUS_COLORS[task.status] ?? '#94a3b8' }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[0.8125rem] font-semibold text-foreground group-hover:text-indigo-500 transition-colors truncate">{task.title}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <StatusBadge status={task.status as TaskStatus} />
+                      <span className="text-xs text-muted-foreground">· {dayjs(task.updated_at).fromNow()}</span>
+                    </div>
+                  </div>
+                  <ArrowRight className="size-3.5 text-border flex-shrink-0 group-hover:text-muted-foreground transition-colors" />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
-        <Grid item xs={12} md={6}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent sx={{ p: '20px !important' }}>
-              <SectionHeader title="Pending Approvals" action="/approvals" count={pendingTasks?.total} />
-              {!pendingTasks?.items.length ? (
-                <Box sx={{ py: 5, textAlign: 'center' }}>
-                  <CheckCircleRounded sx={{ fontSize: 32, color: '#10b981', mb: 1 }} />
-                  <Typography variant="body2" color="text.secondary">All caught up! No pending approvals.</Typography>
-                </Box>
-              ) : (
-                <Box>
-                  {pendingTasks.items.slice(0, 6).map((task, i) => (
-                    <Box key={task.id} onClick={() => navigate(`/tasks/${task.id}`)} sx={{ cursor: 'pointer' }}>
-                      <Box sx={{
-                        display: 'flex', alignItems: 'center', gap: 1.25, py: 1.375,
-                        '&:hover .task-title': { color: '#6366f1' },
-                      }}>
-                        <Box sx={{
-                          width: 28, height: 28, borderRadius: '7px', flexShrink: 0,
-                          background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                          <AccountTreeRounded sx={{ fontSize: 13, color: 'white' }} />
-                        </Box>
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography className="task-title" sx={{
-                            fontWeight: 600, fontSize: '0.8125rem', color: '#0f172a',
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', transition: 'color 0.15s',
-                          }}>
-                            {task.title}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: '#94a3b8' }}>
-                            WF-{task.workflow_id} · {dayjs(task.updated_at).fromNow()}
-                          </Typography>
-                        </Box>
-                        <ArrowForwardRounded sx={{ fontSize: 14, color: '#cbd5e1', flexShrink: 0 }} />
-                      </Box>
-                      {i < pendingTasks.items.length - 1 && <Divider />}
-                    </Box>
-                  ))}
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-    </Box>
+        {/* Pending Approvals */}
+        <div className="bg-card border border-border rounded-xl p-5 shadow-card">
+          <SectionHeader title="Pending Approvals" action="/approvals" count={pendingTasks?.total} />
+          {!pendingTasks?.items.length ? (
+            <div className="py-8 text-center">
+              <CheckCircle2 className="size-8 text-emerald-500 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">All caught up! No pending approvals.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {pendingTasks.items.slice(0, 6).map((task) => (
+                <div key={task.id} onClick={() => navigate(`/tasks/${task.id}`)}
+                  className="flex items-center gap-3 py-3 cursor-pointer group">
+                  <div className="size-7 rounded-lg flex-shrink-0 flex items-center justify-center"
+                    style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+                    <GitBranch className="size-3 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[0.8125rem] font-semibold text-foreground group-hover:text-indigo-500 transition-colors truncate">{task.title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">WF-{task.workflow_id} · {dayjs(task.updated_at).fromNow()}</p>
+                  </div>
+                  <ArrowRight className="size-3.5 text-border flex-shrink-0 group-hover:text-muted-foreground transition-colors" />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

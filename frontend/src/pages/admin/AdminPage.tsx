@@ -1,44 +1,47 @@
-import {
-  Box, Card, CardContent, Typography, Grid, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, Avatar, Chip, Button, LinearProgress,
-  Tab, Tabs, MenuItem, TextField, Alert, IconButton, Tooltip, Stack,
-  Dialog, DialogTitle, DialogContent, DialogActions,
-} from '@mui/material';
-import {
-  PersonRounded, AdminPanelSettingsRounded, BlockRounded, CheckCircleRounded,
-  FilterListRounded,
-} from '@mui/icons-material';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
+import { toast } from 'sonner';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { adminApi } from '../../api/approvals';
-import { usersApi } from '../../api/users';
-import { apiError } from '../../api/client';
-import MetricCard from '../../components/common/MetricCard';
-import PageHeader from '../../components/common/PageHeader';
-import StatusChip from '../../components/common/StatusChip';
-import type { TaskStatus } from '../../types/task';
+import { ListFilter, CheckCircle2, ShieldCheck, Users, LayoutGrid, UserX, UserCheck } from 'lucide-react';
+import { adminApi } from '@/api/approvals';
+import { usersApi } from '@/api/users';
+import { apiError } from '@/api/client';
+import MetricCard from '@/components/common/MetricCard';
+import PageHeader from '@/components/common/PageHeader';
+import { StatusBadge } from '@/components/common/StatusBadge';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
+import type { TaskStatus } from '@/types/task';
 
 dayjs.extend(relativeTime);
 
-const ROLE_CFG: Record<string, { color: string; bg: string }> = {
-  admin:    { color: '#dc2626', bg: '#fee2e2' },
-  manager:  { color: '#6366f1', bg: '#ede9fe' },
-  operator: { color: '#059669', bg: '#d1fae5' },
-  viewer:   { color: '#64748b', bg: '#f1f5f9' },
+const ROLE_CFG: Record<string, { color: string; bg: string; classes: string }> = {
+  admin:    { color: '#dc2626', bg: '#fee2e2', classes: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+  manager:  { color: '#6366f1', bg: '#ede9fe', classes: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' },
+  operator: { color: '#059669', bg: '#d1fae5', classes: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
+  viewer:   { color: '#64748b', bg: '#f1f5f9', classes: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' },
 };
 
 const ENTITY_TYPES = ['all', 'task', 'workflow', 'user', 'approval'];
+const AI_SYSTEMS = [
+  { label: 'Task Routing Model',     health: 98, status: 'Operational', color: '#10b981', bg: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
+  { label: 'SLA Prediction Engine',  health: 94, status: 'Operational', color: '#10b981', bg: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
+  { label: 'Escalation Classifier',  health: 87, status: 'Degraded',    color: '#f59e0b', bg: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+  { label: 'Workload Balancer',       health: 100, status: 'Operational', color: '#10b981', bg: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
+];
 
 export default function AdminPage() {
   const qc = useQueryClient();
-  const [tab, setTab] = useState(0);
+  const [tab, setTab]           = useState<'users' | 'audit'>('users');
   const [entityFilter, setEntityFilter] = useState('all');
   const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; userId: number | null; action: 'deactivate' | 'reactivate' }>({
     open: false, userId: null, action: 'deactivate',
   });
-  const [error, setError] = useState('');
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['admin-stats'],
@@ -59,301 +62,235 @@ export default function AdminPage() {
 
   const deactivateMut = useMutation({
     mutationFn: (id: number) => usersApi.deactivate(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); setConfirmDialog({ open: false, userId: null, action: 'deactivate' }); },
-    onError: (e) => setError(apiError(e)),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); setConfirmDialog({ open: false, userId: null, action: 'deactivate' }); toast.success('User deactivated.'); },
+    onError: (e) => toast.error(apiError(e)),
   });
 
   const reactivateMut = useMutation({
     mutationFn: (id: number) => usersApi.reactivate(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); setConfirmDialog({ open: false, userId: null, action: 'deactivate' }); },
-    onError: (e) => setError(apiError(e)),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); setConfirmDialog({ open: false, userId: null, action: 'reactivate' }); toast.success('User reactivated.'); },
+    onError: (e) => toast.error(apiError(e)),
   });
 
   const handleConfirm = () => {
     if (!confirmDialog.userId) return;
-    setError('');
-    if (confirmDialog.action === 'deactivate') {
-      deactivateMut.mutate(confirmDialog.userId);
-    } else {
-      reactivateMut.mutate(confirmDialog.userId);
-    }
+    if (confirmDialog.action === 'deactivate') deactivateMut.mutate(confirmDialog.userId);
+    else reactivateMut.mutate(confirmDialog.userId);
   };
 
   const isMutating = deactivateMut.isPending || reactivateMut.isPending;
 
   return (
-    <Box>
+    <div className="space-y-5">
       <PageHeader title="Admin Overview" subtitle="System health, users, and audit logs" />
 
-      {/* Stats */}
-      <Grid container spacing={2.5} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Total Tasks"
-            value={stats?.tasks?.total ?? 0}
-            icon={<FilterListRounded />}
-            color="#6366f1" bg="#ede9fe"
-            loading={statsLoading}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Active Workflows"
-            value={stats?.workflows?.active ?? 0}
-            icon={<CheckCircleRounded />}
-            color="#10b981" bg="#d1fae5"
-            loading={statsLoading}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Pending Approvals"
-            value={stats?.tasks?.pending_approval ?? 0}
-            icon={<AdminPanelSettingsRounded />}
-            color="#f59e0b" bg="#fef3c7"
-            loading={statsLoading}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Total Users"
-            value={stats?.users?.total ?? 0}
-            icon={<PersonRounded />}
-            color="#8b5cf6" bg="#ede9fe"
-            loading={statsLoading}
-          />
-        </Grid>
-      </Grid>
+      {/* Metric cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { title: 'Total Tasks',       icon: <ListFilter   className="size-5" />, color: '#6366f1', bg: '#ede9fe', value: stats?.tasks?.total ?? 0,              loading: statsLoading },
+          { title: 'Active Workflows',  icon: <CheckCircle2 className="size-5" />, color: '#10b981', bg: '#d1fae5', value: stats?.workflows?.active ?? 0,         loading: statsLoading },
+          { title: 'Pending Approvals', icon: <ShieldCheck  className="size-5" />, color: '#f59e0b', bg: '#fef3c7', value: stats?.tasks?.pending_approval ?? 0,   loading: statsLoading },
+          { title: 'Total Users',       icon: <Users        className="size-5" />, color: '#8b5cf6', bg: '#ede9fe', value: stats?.users?.total ?? 0,               loading: statsLoading },
+        ].map((m) => <MetricCard key={m.title} {...m} />)}
+      </div>
 
-      {/* AI Health Indicators (mock) */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="subtitle1" sx={{ mb: 2 }}>AI System Health</Typography>
-          <Grid container spacing={2}>
-            {[
-              { label: 'Task Routing Model', health: 98, status: 'Operational', color: '#10b981' },
-              { label: 'SLA Prediction Engine', health: 94, status: 'Operational', color: '#10b981' },
-              { label: 'Escalation Classifier', health: 87, status: 'Degraded', color: '#f59e0b' },
-              { label: 'Workload Balancer', health: 100, status: 'Operational', color: '#10b981' },
-            ].map((item) => (
-              <Grid item xs={12} sm={6} md={3} key={item.label}>
-                <Box sx={{ p: 2, border: '1px solid #e2e8f0', borderRadius: 2 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="caption" sx={{ fontWeight: 600, color: '#475569' }}>{item.label}</Typography>
-                    <Chip label={item.status} size="small"
-                      sx={{ fontSize: '0.65rem', height: 20, color: item.color,
-                        bgcolor: item.color === '#10b981' ? '#d1fae5' : '#fef3c7', fontWeight: 600 }} />
-                  </Box>
-                  <Typography variant="h6" sx={{ color: item.color, fontWeight: 700 }}>{item.health}%</Typography>
-                  <LinearProgress
-                    variant="determinate" value={item.health}
-                    sx={{ mt: 1, height: 4, borderRadius: 2,
-                      '& .MuiLinearProgress-bar': { bgcolor: item.color },
-                      bgcolor: '#f1f5f9' }}
-                  />
-                </Box>
-              </Grid>
-            ))}
-          </Grid>
-        </CardContent>
-      </Card>
+      {/* AI System Health */}
+      <div className="bg-card border border-border rounded-xl p-5 shadow-card">
+        <p className="text-sm font-bold text-foreground mb-4">AI System Health</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {AI_SYSTEMS.map((item) => (
+            <div key={item.label} className="border border-border rounded-xl p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-muted-foreground">{item.label}</p>
+                <span className={cn('inline-flex items-center rounded-md px-1.5 py-0.5 text-[0.6rem] font-bold', item.bg)}>{item.status}</span>
+              </div>
+              <p className="text-2xl font-extrabold mb-2" style={{ color: item.color }}>{item.health}%</p>
+              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${item.health}%`, background: item.color }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Tabs */}
-      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
-        <Tab label="User Management" />
-        <Tab label="Audit Log" />
-      </Tabs>
+      <div className="flex items-center gap-0.5 bg-muted p-1 rounded-lg w-fit">
+        {([['users', 'User Management'], ['audit', 'Audit Log']] as const).map(([val, label]) => (
+          <button key={val} onClick={() => setTab(val)}
+            className={cn('px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150',
+              tab === val ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
+            {label}
+          </button>
+        ))}
+      </div>
 
       {/* User Management */}
-      {tab === 0 && (
-        <Card>
-          {usersLoading && <LinearProgress sx={{ borderRadius: '12px 12px 0 0' }} />}
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>User</TableCell>
-                  <TableCell>Role</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Last Login</TableCell>
-                  <TableCell>Joined</TableCell>
-                  <TableCell align="right">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {users?.items.map((user) => {
-                  const roleCfg = ROLE_CFG[user.role] ?? ROLE_CFG.viewer;
-                  return (
-                    <TableRow key={user.id} hover>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                          <Avatar sx={{ width: 32, height: 32, fontSize: '0.75rem',
-                            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
-                            {user.full_name.charAt(0)}
-                          </Avatar>
-                          <Box>
-                            <Typography variant="subtitle2" sx={{ color: '#0f172a' }}>{user.full_name}</Typography>
-                            <Typography variant="caption" color="text.secondary">{user.email}</Typography>
-                          </Box>
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Chip label={user.role} size="small"
-                          sx={{ color: roleCfg.color, bgcolor: roleCfg.bg, fontWeight: 600, textTransform: 'capitalize' }} />
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={user.is_active ? 'Active' : 'Inactive'}
-                          size="small"
-                          sx={{
-                            color: user.is_active ? '#065f46' : '#dc2626',
-                            bgcolor: user.is_active ? '#d1fae5' : '#fee2e2',
-                            fontWeight: 600,
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="caption" color="text.secondary">
-                          {user.last_login_at ? dayjs(user.last_login_at).fromNow() : 'Never'}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="caption" color="text.secondary">
-                          {dayjs(user.created_at).format('MMM D, YYYY')}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+      {tab === 'users' && (
+        <div className="bg-card border border-border rounded-xl overflow-hidden shadow-card">
+          {usersLoading && <div className="h-0.5 bg-gradient-to-r from-indigo-500 to-violet-500 animate-pulse" />}
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border bg-muted/40">
+                {['User', 'Role', 'Status', 'Last Login', 'Joined', 'Actions'].map((h) => (
+                  <th key={h} className="px-4 py-3 text-left text-[0.6875rem] font-bold uppercase tracking-widest text-muted-foreground">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {usersLoading
+                ? Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i}>{Array.from({ length: 6 }).map((_, j) => (
+                      <td key={j} className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
+                    ))}</tr>
+                  ))
+                : users?.items.map((user) => {
+                    const roleCfg = ROLE_CFG[user.role] ?? ROLE_CFG.viewer;
+                    return (
+                      <motion.tr key={user.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="size-8 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                              style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+                              {user.full_name.charAt(0)}
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-foreground">{user.full_name}</p>
+                              <p className="text-xs text-muted-foreground">{user.email}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={cn('inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold capitalize', roleCfg.classes)}>{user.role}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={cn('inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold',
+                            user.is_active
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                              : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+                          )}>
+                            {user.is_active ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3"><span className="text-xs text-muted-foreground">{user.last_login_at ? dayjs(user.last_login_at).fromNow() : 'Never'}</span></td>
+                        <td className="px-4 py-3"><span className="text-xs text-muted-foreground">{dayjs(user.created_at).format('MMM D, YYYY')}</span></td>
+                        <td className="px-4 py-3">
                           {user.is_active ? (
-                            <Tooltip title="Deactivate user">
-                              <IconButton size="small" color="error"
-                                onClick={() => setConfirmDialog({ open: true, userId: user.id, action: 'deactivate' })}>
-                                <BlockRounded fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                            <button
+                              onClick={() => setConfirmDialog({ open: true, userId: user.id, action: 'deactivate' })}
+                              className="p-1.5 rounded-md hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-colors text-rose-500"
+                              title="Deactivate user"
+                            >
+                              <UserX className="size-3.5" />
+                            </button>
                           ) : (
-                            <Tooltip title="Reactivate user">
-                              <IconButton size="small" color="success"
-                                onClick={() => setConfirmDialog({ open: true, userId: user.id, action: 'reactivate' })}>
-                                <CheckCircleRounded fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                            <button
+                              onClick={() => setConfirmDialog({ open: true, userId: user.id, action: 'reactivate' })}
+                              className="p-1.5 rounded-md hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors text-emerald-600"
+                              title="Reactivate user"
+                            >
+                              <UserCheck className="size-3.5" />
+                            </button>
                           )}
-                        </Stack>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Card>
+                        </td>
+                      </motion.tr>
+                    );
+                  })
+              }
+            </tbody>
+          </table>
+        </div>
       )}
 
       {/* Audit Log */}
-      {tab === 1 && (
-        <Card>
-          <CardContent sx={{ pb: '12px !important' }}>
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-              <Typography variant="subtitle2">Filter by entity:</Typography>
-              <TextField
-                select size="small" value={entityFilter}
-                onChange={(e) => setEntityFilter(e.target.value)}
-                sx={{ width: 160 }}
-              >
+      {tab === 'audit' && (
+        <div className="bg-card border border-border rounded-xl overflow-hidden shadow-card">
+          <div className="px-5 py-4 border-b border-border flex items-center gap-4">
+            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Filter by entity</p>
+            <Select value={entityFilter} onValueChange={setEntityFilter}>
+              <SelectTrigger className="w-44 h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
                 {ENTITY_TYPES.map((t) => (
-                  <MenuItem key={t} value={t} sx={{ textTransform: 'capitalize' }}>{t === 'all' ? 'All Types' : t}</MenuItem>
+                  <SelectItem key={t} value={t} className="text-xs capitalize">{t === 'all' ? 'All Types' : t}</SelectItem>
                 ))}
-              </TextField>
-            </Box>
-          </CardContent>
-          {logsLoading && <LinearProgress />}
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Time</TableCell>
-                  <TableCell>Actor</TableCell>
-                  <TableCell>Action</TableCell>
-                  <TableCell>Entity</TableCell>
-                  <TableCell>Status Change</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {auditLogs.map((log: any) => {
-                  const fromStatus = log.before_state?.status as TaskStatus | undefined;
-                  const toStatus = log.after_state?.status as TaskStatus | undefined;
-                  return (
-                    <TableRow key={log.id} hover>
-                      <TableCell>
-                        <Typography variant="caption" sx={{ color: '#94a3b8', fontFamily: 'monospace' }}>
-                          {dayjs(log.created_at).format('MMM D HH:mm')}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                          {log.actor_id ? `User #${log.actor_id}` : 'System'}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Chip label={log.action.replace(/_/g, ' ')} size="small"
-                          sx={{ fontSize: '0.65rem', height: 20, bgcolor: '#f1f5f9', color: '#475569', textTransform: 'capitalize' }} />
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="caption" sx={{ color: '#475569', textTransform: 'capitalize' }}>
-                          {log.entity_type} #{log.entity_id}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        {fromStatus && toStatus ? (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <StatusChip status={fromStatus} />
-                            <Typography variant="caption" color="text.secondary">→</Typography>
-                            <StatusChip status={toStatus} />
-                          </Box>
-                        ) : (
-                          <Typography variant="caption" color="text.secondary">—</Typography>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
+              </SelectContent>
+            </Select>
+          </div>
+          {logsLoading && <div className="h-0.5 bg-gradient-to-r from-indigo-500 to-violet-500 animate-pulse" />}
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border bg-muted/40">
+                {['Time', 'Actor', 'Action', 'Entity', 'Status Change'].map((h) => (
+                  <th key={h} className="px-4 py-2.5 text-left text-[0.6875rem] font-bold uppercase tracking-widest text-muted-foreground">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {auditLogs.map((log: any) => {
+                const fromStatus = log.before_state?.status as TaskStatus | undefined;
+                const toStatus   = log.after_state?.status  as TaskStatus | undefined;
+                return (
+                  <tr key={log.id} className="hover:bg-muted/30 transition-colors">
+                    <td className="px-4 py-2.5">
+                      <span className="text-xs font-mono text-muted-foreground">{dayjs(log.created_at).format('MMM D HH:mm')}</span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span className="text-xs font-semibold text-foreground">{log.actor_id ? `User #${log.actor_id}` : 'System'}</span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[0.6rem] font-semibold bg-muted text-muted-foreground capitalize">
+                        {log.action.replace(/_/g, ' ')}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span className="text-xs text-muted-foreground capitalize">{log.entity_type} #{log.entity_id}</span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {fromStatus && toStatus ? (
+                        <div className="flex items-center gap-1.5">
+                          <StatusBadge status={fromStatus} />
+                          <span className="text-muted-foreground text-xs">→</span>
+                          <StatusBadge status={toStatus} />
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
           {!logsLoading && !auditLogs.length && (
-            <Box sx={{ py: 4, textAlign: 'center' }}>
-              <Typography variant="body2" color="text.secondary">No audit log entries found.</Typography>
-            </Box>
+            <div className="py-8 text-center text-sm text-muted-foreground">No audit log entries found.</div>
           )}
-        </Card>
+        </div>
       )}
 
       {/* Confirm Dialog */}
-      <Dialog open={confirmDialog.open} onClose={() => !isMutating && setConfirmDialog({ open: false, userId: null, action: 'deactivate' })} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>
-          {confirmDialog.action === 'deactivate' ? 'Deactivate User?' : 'Reactivate User?'}
-        </DialogTitle>
+      <Dialog open={confirmDialog.open} onOpenChange={(o) => !o && !isMutating && setConfirmDialog({ open: false, userId: null, action: 'deactivate' })}>
         <DialogContent>
-          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-          <Typography variant="body2" color="text.secondary">
+          <DialogHeader>
+            <DialogTitle>{confirmDialog.action === 'deactivate' ? 'Deactivate User?' : 'Reactivate User?'}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
             {confirmDialog.action === 'deactivate'
               ? 'This user will no longer be able to log in. Their existing task assignments will remain.'
               : 'This user will be able to log in and access TaskGrid again.'}
-          </Typography>
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDialog({ open: false, userId: null, action: 'deactivate' })} disabled={isMutating}>Cancel</Button>
+            <Button
+              variant={confirmDialog.action === 'deactivate' ? 'destructive' : 'default'}
+              onClick={handleConfirm}
+              disabled={isMutating}
+            >
+              {isMutating ? 'Processing…' : confirmDialog.action === 'deactivate' ? 'Deactivate' : 'Reactivate'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2.5 }}>
-          <Button onClick={() => setConfirmDialog({ open: false, userId: null, action: 'deactivate' })} disabled={isMutating}>Cancel</Button>
-          <Button
-            variant="contained"
-            color={confirmDialog.action === 'deactivate' ? 'error' : 'success'}
-            onClick={handleConfirm}
-            disabled={isMutating}
-          >
-            {isMutating ? 'Processing…' : confirmDialog.action === 'deactivate' ? 'Deactivate' : 'Reactivate'}
-          </Button>
-        </DialogActions>
       </Dialog>
-    </Box>
+    </div>
   );
 }
